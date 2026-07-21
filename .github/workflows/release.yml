@@ -1,0 +1,64 @@
+name: Release
+
+# Push a tag to cut a release:
+#   npm version 0.2.0 --no-git-tag-version   # keep package.json in step
+#   # bump `version` in src-tauri/tauri.conf.json to match
+#   git commit -am "Release v0.2.0" && git tag v0.2.0 && git push --follow-tags
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Capture ${{ github.ref_name }}
+          releaseBody: |
+            ### Downloads
+
+            - **Windows** — `.exe` installer (or `.msi`)
+            - **macOS** — `.dmg` (Apple Silicon or Intel)
+
+            Neither build is code-signed yet, so the first launch needs one extra step:
+
+            - Windows: SmartScreen — *More info* → *Run anyway*
+            - macOS: right-click the app → *Open*
+
+            macOS also needs Screen Recording permission
+            (System Settings → Privacy & Security → Screen & System Audio Recording).
+          # Draft, so the release can be checked before anyone can download it.
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}

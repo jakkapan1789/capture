@@ -1,0 +1,49 @@
+[package]
+name = "capture"
+version = "0.1.0"
+description = "Screen capture with annotations you can always re-edit."
+authors = ["Jakkapan Pakeerat"]
+license = "MIT"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "capture_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `image-png`: lets the clipboard plugin turn our exported PNG bytes into a native
+# clipboard image. `macos-private-api`: required for the transparent overlay window.
+tauri = { version = "2", features = ["image-png", "macos-private-api"] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+# Already in the tree via Tauri; we only need the timer for the pre-capture settle.
+tokio = { version = "1", features = ["time"] }
+
+# Screen capture. Pinned: xcap's API has shifted across minor versions
+# (most Monitor getters return Result now). Verified against the 0.9.7 source.
+xcap = "=0.9.7"
+# Must resolve to the same `image` release xcap depends on (0.25), or the
+# RgbaImage it returns is a different type than the one we crop/encode with.
+image = { version = "0.25", default-features = false, features = ["png"] }
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-opener = "2.5.4"
+
+[profile.release]
+# Small bundle is the whole reason we picked Tauri.
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

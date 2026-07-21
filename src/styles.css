@@ -1,0 +1,1340 @@
+:root {
+  --bg: #16171a;
+  --panel: #1e2025;
+  --panel-2: #26292f;
+  --line: #33373f;
+  --text: #e8eaed;
+  --muted: #9aa0aa;
+  --accent: #ff3b30;
+  --blue: #3b82f6;
+  /* Reserved toolbar height: the segmented control (its tallest child) plus the
+     row's own padding. Fixed so contextual groups appearing never move the
+     canvas below. */
+  --toolbar-height: 59px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* The overlay window renders over the live screen, so nothing behind it may paint. */
+body.transparent,
+body.transparent #root {
+  background: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---------- app shell ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Bare icon action: no border or fill until you reach for it. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.icon-btn:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* The primary action earns colour, not a filled slab. */
+.icon-btn.accent {
+  color: #7fb0ff;
+}
+
+.icon-btn.accent:hover {
+  background: #1b2740;
+  color: #a8c8ff;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.empty-state h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    transform 60ms ease;
+}
+
+.btn svg {
+  flex-shrink: 0;
+  /* Optical alignment: strokes sit a touch high next to a cap-height label. */
+  margin-top: -1px;
+}
+
+.btn:hover {
+  background: #32363f;
+  border-color: #444a55;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.btn.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.btn.primary:hover {
+  background: #4b8ef7;
+  border-color: #4b8ef7;
+}
+
+.btn.danger {
+  border-color: #5e2a27;
+  background: #2b1e1e;
+  color: #ff8a80;
+}
+
+.btn.danger:hover {
+  background: #3a2422;
+  border-color: #7a3733;
+}
+
+.btn.icon-only {
+  padding: 7px;
+}
+
+.btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+/* The first group sits before the tools, so its divider belongs on the right. */
+.btn-group.leading {
+  padding-left: 0;
+  padding-right: 10px;
+  border-left: none;
+  border-right: 1px solid var(--line);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+.btn-group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+/* ---------- colour + size controls ---------- */
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--blue);
+}
+
+/* Native colour input, shrunk to sit inside the swatch circle. */
+.swatch.custom {
+  display: inline-block;
+  overflow: hidden;
+  background: conic-gradient(#ff3b30, #ffcc00, #34c759, #3b82f6, #af52de, #ff3b30);
+}
+
+.swatch.custom input {
+  width: 200%;
+  height: 200%;
+  margin: -25%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+/* ---------- custom select ---------- */
+
+/* Matches the icon buttons beside it: same height, same radius, same hover. */
+.select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.select-trigger:hover {
+  background: #32363f;
+  border-color: #444a55;
+}
+
+.select-trigger:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.select-trigger[aria-expanded="true"] {
+  border-color: var(--blue);
+}
+
+.select-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The numeric variant: keep digits from shifting the control's width. */
+.select-trigger.size-select {
+  min-width: 66px;
+  font-variant-numeric: tabular-nums;
+}
+
+.select-trigger.field-select {
+  min-width: 176px;
+}
+
+.select-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+/* Fixed, and above the modal layer, so a list opened inside a dialog is never
+   clipped by it. */
+.select-popup {
+  position: fixed;
+  z-index: 71;
+  padding: 5px;
+  border-radius: 10px;
+  background: #24272e;
+  border: 1px solid #3b414c;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Highlight follows the keyboard as well as the pointer, so both drive the
+   same visual state. */
+.select-option.highlighted {
+  background: var(--blue);
+  color: #fff;
+}
+
+.select-option svg {
+  flex-shrink: 0;
+  color: var(--blue);
+}
+
+.select-option.highlighted svg {
+  color: #fff;
+}
+
+.field-input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---------- history header ---------- */
+
+.gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 12px 12px 10px;
+}
+
+.gallery-header .gallery-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+
+/* Total count, so the paging below is obviously a subset. */
+.gallery-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.gallery-header .icon-btn {
+  width: 26px;
+  height: 24px;
+  opacity: 0;
+}
+
+/* Cleanup is a rare, destructive action - present, but not shouting. */
+.gallery:hover .gallery-header .icon-btn,
+.gallery-header .icon-btn:focus-visible {
+  opacity: 1;
+}
+
+.gallery-header .icon-btn:hover {
+  color: #ff8a80;
+}
+
+.setting-secondary {
+  margin-top: 14px;
+}
+
+/* ---------- segmented tool picker ---------- */
+
+/* Inset well so the active tool reads as a raised, selected chip. */
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #131418;
+  border: 1px solid var(--line);
+}
+
+/* Icon-only: a square tap target, sized so the row stays comfortable. */
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.seg-btn svg {
+  flex-shrink: 0;
+  margin-top: -1px;
+}
+
+.seg-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.seg-btn.active {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.seg-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* Action labels are the first thing to go when the toolbar runs out of room;
+   the icons still carry the meaning, and every button keeps its tooltip. */
+@media (max-width: 1080px) {
+  .btn-group .btn span {
+    display: none;
+  }
+
+  .btn-group .btn {
+    padding: 7px;
+  }
+}
+
+/* ---------- editor ---------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  /* Never wrap: selecting a text object adds the size picker and the palette,
+     and wrapping those onto a second row doubles the toolbar's height and shunts
+     the whole canvas down. The row scrolls sideways instead, and its height is
+     pinned so nothing below it can ever move. */
+  flex-wrap: nowrap;
+  flex: 0 0 var(--toolbar-height);
+  height: var(--toolbar-height);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Control groups keep their size; only the spacer and the status text give way. */
+.toolbar > .segmented,
+.toolbar > .btn-group {
+  flex-shrink: 0;
+}
+
+/* Capture and settings stay reachable at any width: they stick to the right edge
+   of the scrolling row while the contextual groups slide underneath.
+   The background matches the toolbar exactly and there is no divider or shadow,
+   so at normal widths - where nothing overflows - the group is invisible as a
+   group and simply reads as part of the bar. */
+.toolbar > .btn-group.trailing {
+  position: sticky;
+  right: 0;
+  padding-left: 0;
+  border-left: none;
+  background: var(--panel);
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.status {
+  flex-shrink: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- modal ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.modal {
+  width: min(460px, calc(100vw - 48px));
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-close {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.modal-footer .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Let the label column shrink instead of shoving the control out of the row. */
+  min-width: 0;
+}
+
+.setting-text strong,
+.setting-text span {
+  overflow-wrap: anywhere;
+}
+
+.setting-text span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Reserved space for hint / warning / error. Sized to the tallest of them - the
+   bordered boxes - so swapping between them never resizes the dialog. */
+.setting-message {
+  margin-top: 12px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.setting-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.setting-hint.warn {
+  color: #f0c96a;
+}
+
+.setting-warning,
+.setting-error {
+  margin: 0;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.setting-warning {
+  background: #33290f;
+  border: 1px solid #6b5518;
+  color: #f0c96a;
+}
+
+.setting-error {
+  background: #2b1e1e;
+  border: 1px solid #5e2a27;
+  color: #ff8a80;
+}
+
+/* ---------- hotkey recorder ---------- */
+
+/* Fixed width: this shows a value, so it must not resize as the value changes -
+   a long placeholder used to stretch it past the dialog. */
+.hotkey-chip {
+  flex: 0 0 auto;
+  width: 158px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #131418;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.hotkey-chip:hover {
+  border-color: #4a515e;
+}
+
+.hotkey-chip.recording {
+  border-color: var(--blue);
+  background: #14203a;
+  color: #9dc0ff;
+  font-weight: 500;
+  letter-spacing: normal;
+  animation: hotkey-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hotkey-pulse {
+  50% {
+    border-color: #7fa9ff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotkey-chip.recording {
+    animation: none;
+  }
+}
+
+/* ---------- canvas context menu ---------- */
+
+.context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+/* Fixed, not absolute: `.canvas-area` scrolls, and an absolutely positioned menu
+   inside it would be clipped at the edge of the visible area. */
+.context-menu {
+  position: fixed;
+  z-index: 41;
+  min-width: 200px;
+  padding: 5px;
+  border-radius: 10px;
+  background: #24272e;
+  border: 1px solid #3b414c;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.context-menu button svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  background: var(--blue);
+  color: #fff;
+  outline: none;
+}
+
+.context-menu button:hover svg,
+.context-menu button:focus-visible svg {
+  color: #fff;
+}
+
+.context-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: #3b414c;
+}
+
+.context-menu button.danger {
+  color: #ff8a80;
+}
+
+.context-menu button.danger svg {
+  color: #ff8a80;
+}
+
+.context-menu button.danger:hover,
+.context-menu button.danger:focus-visible {
+  background: #c0352c;
+  color: #fff;
+}
+
+.context-menu button.danger:hover svg,
+.context-menu button.danger:focus-visible svg {
+  color: #fff;
+}
+
+.canvas-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Breathing room on every side. The fit calculation measures the content box,
+     so this padding is space the image is never allowed to grow into. */
+  padding: 28px;
+  /* The image is always scaled to fit, so a scrollbar here would only ever mean
+     the fit maths was wrong. */
+  overflow: hidden;
+  background:
+    repeating-conic-gradient(#1a1b1f 0% 25%, #202226 0% 50%) 50% / 20px 20px;
+}
+
+.canvas-frame {
+  position: relative;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  line-height: 0;
+  /* Short cross-fade when a capture opens. The editor remounts per capture, so
+     this replays by itself; it covers the frame in which layout settles. */
+  animation: canvas-in 130ms ease-out;
+}
+
+@keyframes canvas-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-frame {
+    animation: none;
+  }
+}
+
+/* The item you just clicked, while its PNG is still being read. */
+.gallery-item.loading {
+  border-color: var(--blue);
+  opacity: 0.72;
+}
+
+.text-editor {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed var(--accent);
+  background: rgba(0, 0, 0, 0.55);
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+  min-width: 120px;
+  user-select: text;
+}
+
+/* ---------- gallery ---------- */
+
+/* A fixed header over a scrolling list, rather than one scrolling panel: the
+   title and the cleanup button must stay reachable at any scroll position. */
+.gallery {
+  width: 232px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gallery-scroll {
+  /* Positioned, so rows' offsetTop is measured against the scrollport. */
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+  overscroll-behavior: contain;
+}
+
+.gallery-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.gallery-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.gallery-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gallery-list li {
+  position: relative;
+}
+
+.gallery-item {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--panel-2);
+  cursor: pointer;
+  text-align: left;
+}
+
+.gallery-item:hover {
+  border-color: var(--line);
+}
+
+.gallery-item.active {
+  border-color: var(--blue);
+}
+
+.thumb,
+.gallery-item img,
+.thumb-placeholder {
+  display: block;
+  width: 100%;
+  height: 104px;
+  border-radius: 5px;
+  background: #101114;
+}
+
+.gallery-item img {
+  object-fit: cover;
+}
+
+/* Faint pulse while a thumbnail is still being read from disk. */
+.thumb-placeholder {
+  animation: thumb-wait 1.4s ease-in-out infinite;
+}
+
+.thumb-placeholder.failed {
+  animation: none;
+  background: #1c1416;
+}
+
+@keyframes thumb-wait {
+  50% {
+    background: #16181d;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb-placeholder {
+    animation: none;
+  }
+}
+
+.gallery-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gallery-more:hover {
+  border-color: #4a515e;
+  background: var(--panel-2);
+}
+
+.gallery-more span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gallery-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.gallery-meta strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.gallery-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.gallery-list li:hover .gallery-delete {
+  opacity: 1;
+}
+
+.gallery-delete:hover {
+  background: var(--accent);
+}
+
+/* ---------- region overlay ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.scrim {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.selection {
+  position: absolute;
+  border: 1px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.selection-size {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.overlay-hint {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* ---------- about ---------- */
+
+.modal.about {
+  position: relative;
+  width: min(500px, calc(100vw - 48px));
+  padding: 22px;
+}
+
+.about-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+.about-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-right: 32px;
+}
+
+/* Stands in for a real app icon: the same crop glyph the capture button uses,
+   so the mark is at least consistent with the product rather than a stock one. */
+.about-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  background: linear-gradient(150deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(29, 78, 216, 0.45);
+}
+
+.about-identity h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.about-version {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.about-tagline {
+  margin: 9px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* A definition list, because that is exactly what these rows are. */
+.about-facts {
+  margin: 20px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 12.5px;
+}
+
+.about-facts > div {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.about-facts dt {
+  color: var(--muted);
+}
+
+.about-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.about-path {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* The path is long and the least important part of the row - let it truncate
+   rather than push the button out of reach. */
+.about-path span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #7fb0ff;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  color: var(--muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+.link-btn.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.link-btn.disclosure:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.disclosure-caret {
+  display: inline-block;
+  transition: transform 140ms ease;
+}
+
+.disclosure-caret.open {
+  transform: rotate(90deg);
+}
+
+.about-notices {
+  margin-top: 16px;
+}
+
+.about-notices ul {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #17181c;
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.about-notices li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.about-notices em {
+  font-style: normal;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.about-licence {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.about-footer {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.about-copyright {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.about-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.modal-footer-spacer {
+  flex: 1;
+}
+
+.footer-link {
+  align-self: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure-caret {
+    transition: none;
+  }
+}
+
+/* ---------- screen recording permission ---------- */
+
+.permission-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.permission-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #33290f;
+  border: 1px solid #6b5518;
+  color: #f0c96a;
+}
+
+.permission-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.permission-steps {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.permission-steps strong {
+  color: var(--text);
+  font-weight: 600;
+}
