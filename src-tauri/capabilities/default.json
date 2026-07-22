@@ -4,8 +4,7 @@
   "description": "Capabilities for the editor window and the region-selection overlay.",
   "windows": [
     "main",
-    "region-overlay",
-    "scroll-control"
+    "region-overlay"
   ],
   "permissions": [
     "core:default",

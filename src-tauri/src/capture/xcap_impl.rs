@@ -183,36 +183,6 @@ impl ScreenCapture for XcapCapture {
 mod tests {
     use super::*;
 
-    /// How fast can the same region be grabbed over and over?
-    ///
-    /// This sets the frame rate a scrolling capture can run at, which in turn
-    /// decides how slowly the user has to scroll.
-    #[test]
-    #[ignore]
-    fn measures_repeat_capture_rate() {
-        let capture = XcapCapture;
-        let monitors = capture.list_monitors().expect("list_monitors");
-        let primary = monitors.iter().find(|m| m.is_primary).unwrap_or(&monitors[0]);
-        let region = LogicalRegion {
-            x: primary.x as f64 + 40.0,
-            y: primary.y as f64 + 40.0,
-            width: 900.0,
-            height: 700.0,
-        };
-
-        // Warm up: the first grab pays for connecting to the compositor.
-        let _ = capture.capture_region(region);
-
-        let runs = 10;
-        let start = std::time::Instant::now();
-        for _ in 0..runs {
-            capture.capture_region(region).expect("capture_region");
-        }
-        let each = start.elapsed() / runs;
-        println!("  region {}x{} -> {:?} per grab, {:.1} fps",
-                 region.width, region.height, each, 1.0 / each.as_secs_f64());
-    }
-
     /// Exercises the real capture path against the real display.
     ///
     /// Ignored by default: it needs a desktop session, and on macOS the test binary

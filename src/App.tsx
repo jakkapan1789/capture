@@ -19,7 +19,7 @@ const Editor = lazy(() => import("./editor/Editor"));
 import DeleteCapturesDialog from "./gallery/DeleteCapturesDialog";
 import GalleryStrip from "./gallery/GalleryStrip";
 import AboutDialog from "./about/AboutDialog";
-import PermissionDialog, { type PermissionKind } from "./PermissionDialog";
+import PermissionDialog from "./PermissionDialog";
 import CaptureActions from "./CaptureActions";
 import {
   CAPTURE_CREATED,
@@ -33,8 +33,6 @@ import {
   listMonitors,
   loadGalleryItem,
   openRegionOverlay,
-  openScrollOverlay,
-  SCROLL_INPUT_DENIED_EVENT,
   captureFilePath,
   getSettings,
   readCaptureImage,
@@ -44,12 +42,10 @@ import {
 import { loadImageFromBlob } from "./lib/images";
 import type { Annotation } from "./lib/types";
 import RegionOverlay from "./overlay/RegionOverlay";
-import ScrollPanel from "./scroll/ScrollPanel";
 import SettingsDialog from "./settings/SettingsDialog";
 
 /** Both windows load the same bundle; the label decides which app they get. */
 const OVERLAY_LABEL = "region-overlay";
-const SCROLL_PANEL_LABEL = "scroll-control";
 
 /**
  * Objects copied with Copy / Cmd+C.
@@ -84,7 +80,7 @@ function CaptureApp() {
    * instead of a Back button that would open something the user never opened.
    */
   const [about, setAbout] = useState<null | "standalone" | "from-settings">(null);
-  const [permission, setPermission] = useState<PermissionKind | null>(null);
+  const [permissionOpen, setPermissionOpen] = useState(false);
   const [clipboard, setClipboard] = useState<ObjectClipboard>({
     annotations: [],
     images: new Map(),
@@ -185,7 +181,7 @@ function CaptureApp() {
   // The macOS app menu's About item is the standard entry point; Windows has no
   // menu bar here, which is why Settings also links to it.
   useEffect(() => {
-    const unlisten = listen(PERMISSION_DENIED, () => setPermission("screen"));
+    const unlisten = listen(PERMISSION_DENIED, () => setPermissionOpen(true));
     return () => {
       void unlisten.then((off) => off());
     };
@@ -201,7 +197,7 @@ function CaptureApp() {
   /** True when a failed capture was actually macOS refusing permission. */
   const handledPermission = useCallback((error: unknown) => {
     if (!String(error).includes(PERMISSION_DENIED_ERROR)) return false;
-    setPermission("screen");
+    setPermissionOpen(true);
     return true;
   }, []);
 
@@ -223,23 +219,6 @@ function CaptureApp() {
       if (!handledPermission(error)) flash(`Capture failed: ${error}`);
     }
   };
-
-  const onCaptureScrolling = async () => {
-    try {
-      await openScrollOverlay();
-    } catch (error) {
-      if (!handledPermission(error)) flash(`Could not start a scrolling capture: ${error}`);
-    }
-  };
-
-  // Sending scroll events is a second permission, refused silently by macOS, so
-  // the backend says so explicitly rather than letting the capture sit there.
-  useEffect(() => {
-    const unlisten = listen(SCROLL_INPUT_DENIED_EVENT, () => setPermission("input"));
-    return () => {
-      void unlisten.then((off) => off());
-    };
-  }, []);
 
   const onDelete = useCallback(
     async (id: string) => {
@@ -349,7 +328,6 @@ function CaptureApp() {
     <CaptureActions
       onCaptureRegion={() => void onCaptureRegion()}
       onCaptureScreen={() => void onCaptureScreen()}
-      onCaptureScrolling={() => void onCaptureScrolling()}
       onOpenSettings={() => setSettingsOpen(true)}
     />
   );
@@ -438,9 +416,7 @@ function CaptureApp() {
         />
       )}
 
-      {permission && (
-        <PermissionDialog kind={permission} onClose={() => setPermission(null)} />
-      )}
+      {permissionOpen && <PermissionDialog onClose={() => setPermissionOpen(false)} />}
 
       {cleanUpOpen && (
         <DeleteCapturesDialog
@@ -454,9 +430,7 @@ function CaptureApp() {
 }
 
 export default function App() {
-  const label = getCurrentWindow().label;
-  const isOverlay = label === OVERLAY_LABEL;
-  const isScrollPanel = label === SCROLL_PANEL_LABEL;
+  const isOverlay = getCurrentWindow().label === OVERLAY_LABEL;
 
   /**
    * Suppress the webview's own context menu everywhere.
@@ -478,12 +452,8 @@ export default function App() {
 
   useEffect(() => {
     // The overlay window must not paint an opaque background over the screen.
-    // Neither of the small windows may paint an opaque background over the
-    // screen they are sitting on top of.
-    document.body.classList.toggle("transparent", isOverlay || isScrollPanel);
-  }, [isOverlay, isScrollPanel]);
+    document.body.classList.toggle("transparent", isOverlay);
+  }, [isOverlay]);
 
-  if (isOverlay) return <RegionOverlay />;
-  if (isScrollPanel) return <ScrollPanel />;
-  return <CaptureApp />;
+  return isOverlay ? <RegionOverlay /> : <CaptureApp />;
 }

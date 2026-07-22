@@ -254,15 +254,6 @@ export const TextPlateIcon = (props: { size?: number }) => (
   </Svg>
 );
 
-/** A tall page with a downward arrow: capture more than fits on screen. */
-export const ScrollIcon = (props: { size?: number }) => (
-  <Svg {...props}>
-    <rect x="5.5" y="3" width="13" height="18" rx="2" />
-    <path d="M12 8.2 V15.6" />
-    <path d="M9.4 13 L12 15.8 L14.6 13" />
-  </Svg>
-);
-
 export const InfoIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <circle cx="12" cy="12" r="9" />

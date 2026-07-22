@@ -2,10 +2,7 @@ mod capture;
 mod commands;
 mod hotkey;
 mod ocr;
-mod scroll;
-mod scroll_input;
 mod settings;
-mod stitch;
 mod storage;
 
 use std::sync::Mutex;
@@ -35,8 +32,6 @@ pub fn run() {
             recognizer: ocr::create_recognizer(),
             settings: Mutex::new(settings::Settings::default()),
             pending_frame: Mutex::new(None),
-            scroll: Mutex::new(None),
-            hid_main_window: std::sync::atomic::AtomicBool::new(false),
         })
         .setup(|app| {
             let handle = app.handle().clone();
@@ -63,10 +58,6 @@ pub fn run() {
             commands::open_region_overlay,
             commands::close_region_overlay,
             commands::capture_region,
-            commands::open_scroll_overlay,
-            commands::start_scroll_capture,
-            commands::stop_scroll_capture,
-            commands::cancel_scroll_capture,
             commands::capture_monitor,
             commands::read_capture_image,
             commands::read_capture_thumbnail,

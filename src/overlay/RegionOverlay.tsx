@@ -7,25 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  captureRegion,
-  closeRegionOverlay,
-  startScrollCapture,
-  type Region,
-} from "../lib/ipc";
-
-/**
- * Whether this overlay is picking a region for a scrolling capture.
- *
- * Set by the backend before the page loads. Read once, at module level, because
- * it cannot change for the life of the window.
- */
-const FOR_SCROLLING =
-  (window as unknown as { __CAPTURE_SCROLLING__?: boolean }).__CAPTURE_SCROLLING__ === true;
-
-/** Whether the app scrolls for you, rather than watching you scroll. */
-const AUTO_SCROLL =
-  (window as unknown as { __CAPTURE_AUTO_SCROLL__?: boolean }).__CAPTURE_AUTO_SCROLL__ !== false;
+import { captureRegion, closeRegionOverlay, type Region } from "../lib/ipc";
 
 /** Ignore stray clicks and accidental micro-drags. */
 const MIN_DRAG = 4;
@@ -94,11 +76,7 @@ export default function RegionOverlay() {
 
     capturing.current = true;
     try {
-      // The same drag, selecting for a different kind of capture. Which one is
-      // decided by the URL the overlay was opened with, so this window does not
-      // need to know how it was reached.
-      if (FOR_SCROLLING) await startScrollCapture(region, AUTO_SCROLL);
-      else await captureRegion(region);
+      await captureRegion(region);
     } catch (error) {
       console.error("region capture failed", error);
       cancel();

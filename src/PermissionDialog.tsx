@@ -4,46 +4,23 @@ import { useEffect } from "react";
 import { MonitorIcon } from "./lib/icons";
 
 /**
- * Shown when macOS refuses a permission the app cannot work without.
+ * Shown when macOS refuses screen capture.
  *
- * Both kinds fail invisibly, which is the reason this exists. Screen capture
- * comes back as the wallpaper with every window missing; a scroll event sent
- * without Accessibility is simply dropped, with no error to report. Either way
- * the app looks broken rather than blocked.
+ * Without this the failure is invisible: macOS returns a screenshot of the
+ * wallpaper with every window - and the desktop icons - silently missing, which
+ * looks like a broken capture rather than a permission problem.
  */
 const IS_MAC = navigator.userAgent.includes("Mac");
 
-export type PermissionKind = "screen" | "input";
-
-const COPY: Record<
-  PermissionKind,
-  { title: string; pane: string; url: string; explains: string; setting: string }
-> = {
-  screen: {
-    title: "Screen recording is off",
-    pane: "Screen & System Audio Recording",
-    url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-    explains:
-      "macOS is blocking screen capture, so screenshots come back as the desktop wallpaper with every window missing.",
-    setting: "Screen & System Audio Recording",
-  },
-  input: {
-    title: "Accessibility access is off",
-    pane: "Accessibility",
-    url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-    explains:
-      "A scrolling capture scrolls the window for you, and macOS only lets an app do that with Accessibility access. Without it the scroll events are discarded silently and the capture never moves.",
-    setting: "Accessibility",
-  },
-};
+/** Deep link straight to the Screen Recording list in System Settings. */
+const SETTINGS_URL =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
 
 interface Props {
-  kind?: PermissionKind;
   onClose: () => void;
 }
 
-export default function PermissionDialog({ kind = "screen", onClose }: Props) {
-  const copy = COPY[kind];
+export default function PermissionDialog({ onClose }: Props) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -58,10 +35,10 @@ export default function PermissionDialog({ kind = "screen", onClose }: Props) {
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={copy.title}
+        aria-label="Screen recording permission needed"
       >
         <header className="modal-header">
-          <h2>{copy.title}</h2>
+          <h2>Screen recording is off</h2>
           <button type="button" className="modal-close" onClick={onClose} title="Close">
             &times;
           </button>
@@ -72,10 +49,13 @@ export default function PermissionDialog({ kind = "screen", onClose }: Props) {
             <MonitorIcon size={26} />
           </div>
           <div>
-            <p>{copy.explains}</p>
+            <p>
+              macOS is blocking screen capture, so screenshots come back as the desktop
+              wallpaper with every window missing.
+            </p>
             {IS_MAC && (
               <ol className="permission-steps">
-                <li>Open Privacy &amp; Security → {copy.setting}.</li>
+                <li>Open Privacy &amp; Security → Screen &amp; System Audio Recording.</li>
                 <li>
                   Turn on <strong>Capture</strong>.
                 </li>
@@ -92,7 +72,7 @@ export default function PermissionDialog({ kind = "screen", onClose }: Props) {
           <button
             type="button"
             className="btn primary"
-            onClick={() => void openUrl(copy.url)}
+            onClick={() => void openUrl(SETTINGS_URL)}
           >
             Open System Settings
           </button>

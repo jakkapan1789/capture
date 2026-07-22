@@ -89,9 +89,9 @@ for (const file of sourceFiles("src")) {
 }
 
 // Every window the backend creates must be listed in the capability, or it
-// starts with no permissions at all - `listen` fails, and a window that looks
-// fine simply never receives anything. This is how the scrolling capture's Stop
-// panel shipped dead: the code was right and the window was not allowed to hear.
+// starts with no permissions at all - `listen` fails and the window simply never
+// receives anything, which looks like a broken feature rather than a blocked
+// one. Found the hard way, and cheap to keep watching for.
 const capability = JSON.parse(readFileSync("src-tauri/capabilities/default.json", "utf8"));
 const allowedWindows = new Set(capability.windows ?? []);
 const rust = readFileSync("src-tauri/src/commands.rs", "utf8");
