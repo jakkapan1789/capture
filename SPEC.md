@@ -146,6 +146,16 @@ grabbing again. The race is removed instead of out-waited, and the selection now
 shows the screen as it was when you started, which is also what every other
 capture tool does.
 
+## Selection is shown by handles, not an outline
+
+The transformer's border is off for annotations and on only in crop mode, where
+the border *is* the thing being dragged. Selection reads from the white resize
+handles instead.
+
+That leaves text and step badges with no transformer chrome of their own — a
+step badge thickens its own white ring when selected, a text object shows
+nothing. Worth revisiting if it turns out to be hard to tell what is selected.
+
 ## The window's minimum size is measured, not guessed
 
 `minWidth` is derived from the widest the toolbar ever gets. That is not the

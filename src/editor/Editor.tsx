@@ -1242,7 +1242,10 @@ export default function Editor({
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}
-                borderStroke={cropping ? "#ffffff" : SELECTION}
+                // No outline around a selected object - only the crop box keeps
+                // one, where the border *is* the thing being adjusted.
+                borderEnabled={cropping}
+                borderStroke="#ffffff"
                 borderStrokeWidth={2}
                 anchorStroke={cropping ? "#ffffff" : SELECTION}
                 anchorFill="#ffffff"
