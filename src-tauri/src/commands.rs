@@ -128,12 +128,20 @@ pub fn list_monitors(state: State<'_, AppState>) -> Result<Vec<MonitorInfo>, Str
 ///
 /// Must **not** be called from the main thread: see `open_region_overlay`.
 pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    show_region_overlay_with(app, "index.html")
+    show_region_overlay_with(app, false)
 }
 
-/// As above, but at a chosen URL - the overlay is told which kind of capture it
-/// is selecting for by the query it is opened with, so one window serves both.
-pub fn show_region_overlay_with<R: Runtime>(app: &AppHandle<R>, url: &str) -> Result<(), String> {
+/// As above, for a scrolling capture.
+///
+/// The mode is injected as a global before the page loads rather than passed in
+/// the URL: `WebviewUrl::App` takes a `PathBuf`, so whether a query string
+/// survives being joined to the base URL and encoded is a detail to be at the
+/// mercy of. An initialisation script runs before the page's own scripts and
+/// cannot be mangled by either.
+pub fn show_region_overlay_with<R: Runtime>(
+    app: &AppHandle<R>,
+    for_scrolling: bool,
+) -> Result<(), String> {
     // Check before the overlay appears: being asked to drag a region and only
     // then being told it was refused is a waste of the user's time. The hotkey
     // path has no dialog of its own, so surface it on the main window.
@@ -175,7 +183,12 @@ pub fn show_region_overlay_with<R: Runtime>(app: &AppHandle<R>, url: &str) -> Re
         .map_err(|e| e.to_string())? = Some(frame);
 
 
-    let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App(url.into()))
+    let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("index.html".into()))
+        .initialization_script(if for_scrolling {
+            "window.__CAPTURE_SCROLLING__ = true;"
+        } else {
+            "window.__CAPTURE_SCROLLING__ = false;"
+        })
         .title("Select a region")
         .position(position.x as f64, position.y as f64)
         .inner_size(size.width as f64, size.height as f64)
@@ -465,9 +478,9 @@ pub fn capture_file_path<R: Runtime>(app: AppHandle<R>, id: String) -> Result<St
 #[tauri::command]
 pub async fn open_scroll_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        // The overlay is told which kind of capture it is selecting for by the
-        // URL it is opened with, so one window serves both.
-        show_region_overlay_with(&app, "index.html?scroll=1")
+        // One overlay window serves both kinds of capture; this is how it is
+        // told which one it is selecting for.
+        show_region_overlay_with(&app, true)
     })
     .await
     .map_err(|error| format!("could not open the overlay: {error}"))?
@@ -598,7 +611,7 @@ fn open_scroll_panel<R: Runtime>(app: &AppHandle<R>, region: LogicalRegion) -> R
     WebviewWindowBuilder::new(
         app,
         SCROLL_LABEL,
-        WebviewUrl::App("index.html?scroll-panel=1".into()),
+        WebviewUrl::App("index.html".into()),
     )
     .title("Scrolling capture")
     .inner_size(W, H)

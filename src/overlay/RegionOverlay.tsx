@@ -14,8 +14,14 @@ import {
   type Region,
 } from "../lib/ipc";
 
-/** Whether this overlay is picking a region for a scrolling capture. */
-const FOR_SCROLLING = new URLSearchParams(location.search).has("scroll");
+/**
+ * Whether this overlay is picking a region for a scrolling capture.
+ *
+ * Set by the backend before the page loads. Read once, at module level, because
+ * it cannot change for the life of the window.
+ */
+const FOR_SCROLLING =
+  (window as unknown as { __CAPTURE_SCROLLING__?: boolean }).__CAPTURE_SCROLLING__ === true;
 
 /** Ignore stray clicks and accidental micro-drags. */
 const MIN_DRAG = 4;
