@@ -35,9 +35,14 @@ returns the desktop wallpaper with every window missing rather than an error.
 
 Anything that captures the screen must be run through `npm run dev:app`, not
 `tauri dev`. The bare binary has no `Info.plist` and is linker-signed with a hash
-of its own contents, so it never appears in the permission list and its identity
-changes every build; the script bundles it and re-signs it with the identifier
-from `tauri.conf.json` so the grant sticks.
+of its own contents, so it never appears in the permission list at all.
+
+Bundling alone does not fix it, and neither does `--identifier`: an ad-hoc
+signature's designated requirement is `cdhash H"..."`, so each rebuild reads as a
+different app and the grant is lost. `dev:app` signs with a real code-signing
+certificate, which yields an identifier-based requirement that survives rebuilds
+— verified by rebuilding and diffing. `tccutil reset ScreenCapture <bundle-id>`
+clears a stale entry left by an earlier signing identity.
 
 ## The split that defines the codebase
 

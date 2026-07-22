@@ -12,11 +12,22 @@
 # Two things fix that, and both are needed:
 #
 #   1. Bundle it, so it has a CFBundleIdentifier and a name to show in the list.
-#   2. Re-sign it with a *stable* identifier. Even bundled, Tauri leaves the
-#      ad-hoc signature keyed to a content hash, which changes on every build -
-#      so the grant would be silently lost each time you rebuilt.
+#   2. Sign it with a real certificate. Bundling alone is not enough, and neither
+#      is passing --identifier: an ad-hoc signature's designated requirement is
 #
-# The permission then survives rebuilds, because the identity no longer moves.
+#          designated => cdhash H"0ca2c7a6..."
+#
+#      which is a hash of the binary's own contents, so every rebuild looks like
+#      a different application and the grant is silently lost. Signing with a
+#      certificate - an Apple Development one is fine, it need not be a Developer
+#      ID - gives instead
+#
+#          designated => identifier "com.jakkapanpakeerat.capture" and
+#                        anchor apple generic and certificate leaf[...] = ...
+#
+#      which has no cdhash in it and therefore survives rebuilds.
+#
+# Grant the permission once after the first signed build; it sticks from then on.
 
 set -euo pipefail
 
@@ -32,9 +43,27 @@ IDENTIFIER=$(python3 -c "import json; print(json.load(open('$CONFIG'))['identifi
 echo "==> building $IDENTIFIER"
 npm run tauri -- build --debug --bundles app
 
-echo "==> signing with a stable identity"
-codesign --force --deep --sign - --identifier "$IDENTIFIER" "$APP"
-codesign -dv "$APP" 2>&1 | grep '^Identifier='
+# Any code-signing certificate will do. Ad-hoc is the fallback, and it works -
+# but the grant has to be given again after every build.
+CERT=$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(.*\)"/\1/p' | head -1)
+
+if [ -n "$CERT" ]; then
+  echo "==> signing as $CERT"
+  codesign --force --deep --sign "$CERT" --identifier "$IDENTIFIER" "$APP"
+else
+  echo "==> no signing certificate found; falling back to ad-hoc"
+  echo "    Screen Recording permission will not survive a rebuild. To fix this"
+  echo "    permanently, create a code-signing certificate in Keychain Access:"
+  echo "    Certificate Assistant -> Create a Certificate -> Code Signing."
+  codesign --force --deep --sign - --identifier "$IDENTIFIER" "$APP"
+fi
+
+# Print what macOS will actually match the permission against. A requirement
+# containing "cdhash" means it is pinned to this exact build and will be lost on
+# the next one.
+echo "==> permission will be matched against:"
+codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => /    /p'
 
 echo "==> launching"
 open "$APP"

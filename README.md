@@ -51,8 +51,23 @@ and offers a link to the right settings pane.
 `target/debug`, which has no `Info.plist` and is linker-signed with a hash of its
 own contents, so macOS has nothing stable to attach the grant to: the app never
 appears in the permission list, and whatever access it has is inherited from the
-terminal that launched it. Use `npm run dev:app`, which bundles the app *and*
-re-signs it with a stable identifier so the grant survives rebuilds.
+terminal that launched it.
+
+Use `npm run dev:app`. It bundles the app and signs it with a code-signing
+certificate, which is what makes the grant stick — an ad-hoc signature's
+designated requirement is `cdhash H"..."`, a hash of the binary itself, so every
+rebuild looks like a different application and the permission is silently lost.
+Signing with a certificate (an Apple Development one is enough; it need not be a
+Developer ID) gives a requirement based on the identifier instead, which survives
+rebuilds. The script prints the requirement it produced, and falls back to ad-hoc
+with a warning if no certificate is installed.
+
+Grant the permission once after the first signed build. If an earlier unsigned
+build already left an entry, clear it first:
+
+```sh
+tccutil reset ScreenCapture com.jakkapanpakeerat.capture
+```
 
 Permission is granted per binary, so a debug build, a release build and the test
 harness each need it separately.
