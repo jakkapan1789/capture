@@ -3,6 +3,7 @@ mod commands;
 mod hotkey;
 mod ocr;
 mod settings;
+mod stitch;
 mod storage;
 
 use std::sync::Mutex;

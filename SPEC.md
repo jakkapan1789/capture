@@ -340,6 +340,44 @@ does not flash an empty window while the chunk arrives.
 Widening or narrowing the history strip changes none of this. The gallery's cost
 is the number of thumbnails read and their size, not the width they are drawn at.
 
+## Scrolling capture: the joining comes first
+
+A scrolling capture is many overlapping frames joined into one tall image. The
+joining is the part that decides whether the feature is worth having, and it is
+also the only part that can be proved without touching an operating system - so
+it was written and tested first, before anything captures or scrolls.
+
+**Screenshots are not photographs.** Where two frames overlap they are pixel
+identical, so none of the machinery of panorama stitching applies: no feature
+detection, no blending, no seam finding. The only unknown is how far the content
+moved, which comparing rows answers exactly. Rows are hashed to find a candidate
+offset and then the bytes are compared, so a hash collision costs a wasted
+comparison and never a wrong join.
+
+**Pinned regions are found, not assumed.** Rows identical at the same position in
+two different views did not scroll - a header, a toolbar, a status bar - and are
+written once instead of once per frame. Two frames are a guess, though: a blank
+strip looks exactly like a pinned header. So if the join cannot be found with the
+pinned regions excluded, it is tried again without them, and the guess is
+abandoned. A test covers exactly that case.
+
+**It streams.** Capturing a 2000px region at 15fps for ten seconds is 150 frames
+and gigabytes of RGBA. Only the canvas and the previous frame are held: measured
+at 1400x1000, 41MB against 117MB for keeping every frame, and 1.5ms to join each
+one - fast enough that the capture rate, not the joining, is the limit.
+
+**Failure is reported, not hidden.** Scrolling further than one view leaves
+nothing to join on, and joining anyway would silently drop a screenful; that
+returns `NoOverlap`. Scrolling back up is a different mistake and returns
+`Backwards`, because "scroll more slowly" would be the wrong advice. Resizing the
+window mid-capture returns `SizeChanged`. Each carries wording aimed at the
+person scrolling.
+
+What it cannot do is content that changes while you scroll - a clock, a video, a
+blinking cursor. The join is still found from the rows that did match, so the
+result is a visible seam rather than a failure, and no amount of cleverness here
+would fix it.
+
 ## Where capture time actually goes
 
 Saving a capture is one PNG encode of a full-resolution frame. A first pass at
