@@ -150,12 +150,15 @@ capture tool does.
 
 `minWidth` is derived from the widest the toolbar ever gets. That is not the
 default state: selecting a step badge while a crop is active shows the colour
-well, the Number -/+ pair, Delete *and* Reset crop at once — 883px, against
-539px with nothing selected.
+well, the Number -/+ pair, Delete *and* Reset crop at once — 919px, against
+575px with nothing selected.
 
 Below that the pinned capture buttons overlap the tools rather than the row
-simply scrolling, which looks broken. So `minWidth = 883 + 232 (history strip)
-+ 45 slack`. Re-measure it if the toolbar gains controls.
+simply scrolling, which looks broken. So `minWidth = 919 + 232 (history strip)
++ 45 slack` = 1196.
+
+**Re-measure whenever the toolbar gains a control** — adding the ellipse tool
+alone moved it from 883 to 919.
 
 ## Storage is named after the product, not the identifier
 

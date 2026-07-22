@@ -56,6 +56,12 @@ export const BoxIcon = (props: { size?: number }) => (
   </Svg>
 );
 
+export const CircleIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <ellipse cx="12" cy="12" rx="8.5" ry="7.5" />
+  </Svg>
+);
+
 export const TextIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <path d="M5 7 V4.5 H19 V7" />

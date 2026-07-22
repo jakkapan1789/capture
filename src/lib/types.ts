@@ -11,7 +11,16 @@
  *    resolution without a conversion step.
  */
 
-export type Tool = "select" | "arrow" | "rect" | "text" | "step" | "blur" | "crop" | "cut";
+export type Tool =
+  | "select"
+  | "arrow"
+  | "rect"
+  | "ellipse"
+  | "text"
+  | "step"
+  | "blur"
+  | "crop"
+  | "cut";
 
 interface BaseAnnotation {
   id: string;
@@ -36,6 +45,22 @@ export interface ArrowAnnotation extends BaseAnnotation {
 
 export interface RectAnnotation extends BaseAnnotation {
   type: "rect";
+  width: number;
+  height: number;
+  stroke: string;
+  strokeWidth: number;
+}
+
+/**
+ * An outlined ellipse.
+ *
+ * Stored as a top-left box like [`RectAnnotation`], not as a centre and radii,
+ * so dragging, the marquee and the transformer all treat it the same way as
+ * every other box. `EllipseShape` converts to Konva's centre-based model when it
+ * draws, and converts straight back.
+ */
+export interface EllipseAnnotation extends BaseAnnotation {
+  type: "ellipse";
   width: number;
   height: number;
   stroke: string;
@@ -130,6 +155,7 @@ export interface ImageAnnotation extends BaseAnnotation {
 export type Annotation =
   | ArrowAnnotation
   | RectAnnotation
+  | EllipseAnnotation
   | TextAnnotation
   | StepAnnotation
   | BlurAnnotation
@@ -138,6 +164,15 @@ export type Annotation =
   | CropAnnotation;
 
 export const ACCENT = "#ff3b30";
+
+/**
+ * Colour of selection chrome.
+ *
+ * Deliberately not [`ACCENT`]: annotations default to red, and a red selection
+ * box around a red arrow is almost invisible. Blue never collides with the
+ * drawing itself.
+ */
+export const SELECTION = "#3b82f6";
 
 /** Default text size, in logical pixels. */
 export const DEFAULT_FONT_SIZE = 16;
@@ -149,6 +184,7 @@ function colorField(annotation: Annotation): "stroke" | "fill" | null {
   switch (annotation.type) {
     case "arrow":
     case "rect":
+    case "ellipse":
       return "stroke";
     case "text":
     case "step":

@@ -15,7 +15,16 @@ import Konva from "konva";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
-import { Arrow, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import {
+  Arrow,
+  Ellipse,
+  Image as KonvaImage,
+  Layer,
+  Rect,
+  Stage,
+  Text,
+  Transformer,
+} from "react-konva";
 
 import { CopyIcon, DownloadIcon, ImageIcon, PasteIcon, TrashIcon } from "../lib/icons";
 import { placeInViewport, readClipboardImage, type PastedImage } from "../lib/images";
@@ -32,6 +41,7 @@ import {
   isSelectable,
   persistableAnnotations,
   rectsIntersect,
+  SELECTION,
   stepNumbers,
   type Annotation,
   type BlurAnnotation,
@@ -42,6 +52,7 @@ import Toolbar from "./Toolbar";
 import ArrowShape from "./shapes/ArrowShape";
 import BlurRegion from "./shapes/BlurRegion";
 import ImageObject from "./shapes/ImageObject";
+import EllipseShape from "./shapes/EllipseShape";
 import StepBadge from "./shapes/StepBadge";
 import { useAnnotations } from "./useAnnotations";
 
@@ -59,6 +70,7 @@ const SHORTCUTS: Record<string, Tool> = {
   v: "select",
   a: "arrow",
   r: "rect",
+  o: "ellipse",
   t: "text",
   s: "step",
   b: "blur",
@@ -67,7 +79,7 @@ const SHORTCUTS: Record<string, Tool> = {
 };
 
 /** Tools whose selection box the transformer can resize. */
-const RESIZABLE = new Set(["rect", "blur", "image", "fill"]);
+const RESIZABLE = new Set(["rect", "ellipse", "blur", "image", "fill"]);
 
 interface Props {
   meta: CaptureMeta;
@@ -293,8 +305,11 @@ export default function Editor({
       .map((annotation) => layer.findOne(`#${annotation.id}`))
       .filter((node): node is Konva.Node => Boolean(node));
 
+    // Attach to everything selected, not just the resizable shapes. Text and
+    // step badges previously had no selection outline at all, and an arrow only
+    // grew endpoint handles - easy to miss against a busy screenshot.
     const resizable = selected.length === 1 && RESIZABLE.has(selected[0].type);
-    transformer.nodes(selected.length > 1 || resizable ? nodes : []);
+    transformer.nodes(nodes);
     transformer.resizeEnabled(resizable);
     transformer.getLayer()?.batchDraw();
   }, [selected, annotations, cropping, crop]);
@@ -614,6 +629,11 @@ export default function Editor({
       case "rect": {
         if (bounds.width < MIN_DRAW || bounds.height < MIN_DRAW) return;
         add({ id: createId(), type: "rect", ...bounds, stroke: style.color, strokeWidth });
+        return;
+      }
+      case "ellipse": {
+        if (bounds.width < MIN_DRAW || bounds.height < MIN_DRAW) return;
+        add({ id: createId(), type: "ellipse", ...bounds, stroke: style.color, strokeWidth });
         return;
       }
       case "blur": {
@@ -994,6 +1014,15 @@ export default function Editor({
                         }}
                       />
                     );
+                  case "ellipse":
+                    return (
+                      <EllipseShape
+                        key={annotation.id}
+                        annotation={annotation}
+                        draggable={draggableNow}
+                        onChange={(patch) => update(annotation.id, patch)}
+                      />
+                    );
                   case "text":
                     return (
                       <Text
@@ -1187,6 +1216,19 @@ export default function Editor({
                 />
               )}
 
+              {draft?.tool === "ellipse" && (
+                <Ellipse
+                  x={draftBounds(draft).x + draftBounds(draft).width / 2}
+                  y={draftBounds(draft).y + draftBounds(draft).height / 2}
+                  radiusX={draftBounds(draft).width / 2}
+                  radiusY={draftBounds(draft).height / 2}
+                  stroke={ACCENT}
+                  strokeWidth={strokeWidth / 2}
+                  dash={[6 * unit, 4 * unit]}
+                  listening={false}
+                />
+              )}
+
               {draft && ["rect", "blur", "crop", "cut"].includes(draft.tool) && (
                 <Rect
                   {...draftBounds(draft)}
@@ -1200,9 +1242,15 @@ export default function Editor({
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}
-                borderStroke={cropping ? "#ffffff" : ACCENT}
-                anchorStroke={cropping ? "#ffffff" : ACCENT}
-                anchorSize={8}
+                borderStroke={cropping ? "#ffffff" : SELECTION}
+                borderStrokeWidth={2}
+                anchorStroke={cropping ? "#ffffff" : SELECTION}
+                anchorFill="#ffffff"
+                anchorSize={9}
+                anchorCornerRadius={2}
+                // Stand the outline off the shape so it reads as chrome rather
+                // than as part of the drawing.
+                padding={4 * unit}
                 ignoreStroke
                 boundBoxFunc={(oldBox, newBox) =>
                   newBox.width < 16 || newBox.height < 16 ? oldBox : newBox
