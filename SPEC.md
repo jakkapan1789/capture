@@ -183,6 +183,21 @@ layer, and clear the selection through `flushSync` first - an arrow's endpoint
 handles are drawn on the *content* layer and would otherwise be cut into the
 piece.
 
+## Konva is not on the startup path
+
+Konva is 324KB of a 573KB bundle, and nothing needs it until a capture is
+opened: the app starts with nothing open, and the region-selection overlay -
+which loads the *same bundle* in its own window - never imports it at all. So
+every cold start and every press of the capture hotkey parsed it first.
+
+`App.tsx` loads the editor through `lazy()`, which splits it and Konva into
+their own chunk: 573KB down to 248KB before anything is opened. The `Suspense`
+fallback renders the same toolbar shell the editor does, so opening a capture
+does not flash an empty window while the chunk arrives.
+
+Widening or narrowing the history strip changes none of this. The gallery's cost
+is the number of thumbnails read and their size, not the width they are drawn at.
+
 ## Where capture time actually goes
 
 Saving a capture is one PNG encode of a full-resolution frame. A first pass at
@@ -232,6 +247,14 @@ distorted rather than obviously broken; it was found by measuring the stored
 files, not by reading the code. `thumb_size()` computes both edges from one
 ratio, and a test pins it.
 
+They are **JPEG**, not PNG. Downscaling a screenshot destroys the flat runs PNG
+depends on, so thumbnails came out at 54-125KB each - comparable to the full
+capture they came from. As JPEG the same images are 13-19KB: measured across the
+gallery on this machine, 539KB became 75KB. A thumbnail is decoration for a
+154x82 row and is never edited, so lossless was the wrong trade. Older captures
+keep their `.thumb.png` and are still read - `read_thumb` tries the JPEG, then
+that, then the full image.
+
 ## The window's minimum size is measured, not guessed
 
 `minWidth` is derived from the widest the toolbar ever gets, measured in the
@@ -243,9 +266,11 @@ Delete *and* Reset crop, the widest state at 919px.
 The row scrolls sideways by design, so exceeding it is not a failure - but the
 pinned capture group starts getting clipped rather than staying pinned once the
 overflow is large. Screenshotting the widest reachable state put that boundary
-between 900px (settings gear clipped) and 1020px (clean). So
-`minWidth = 1020`, which leaves the crop+step state scrolling slightly rather
-than sizing every window for a state most sessions never enter.
+between 900px (settings gear clipped) and 1020px (clean) - measured with the
+history strip at its old 232px, which left the toolbar 788px. The strip is 190px
+now, so `minWidth = 980` gives the toolbar the same room it was measured with.
+Either way the crop+step state scrolls slightly, rather than every window being
+sized for a state most sessions never enter.
 
 **Re-measure whenever the toolbar gains a control** — adding the ellipse tool
 alone moved it from 883 to 919.

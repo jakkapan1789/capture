@@ -4,9 +4,18 @@ import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
-import Editor from "./editor/Editor";
+/**
+ * The editor is loaded on demand, and with it Konva.
+ *
+ * Konva is 324KB of a 573KB bundle, and nothing on screen needs it until a
+ * capture is opened - the app starts with nothing open, and the region-selection
+ * overlay, which runs the same bundle in its own window, never uses it at all.
+ * Loading it eagerly meant every cold start and every press of the capture
+ * hotkey parsed it first.
+ */
+const Editor = lazy(() => import("./editor/Editor"));
 import DeleteCapturesDialog from "./gallery/DeleteCapturesDialog";
 import GalleryStrip from "./gallery/GalleryStrip";
 import AboutDialog from "./about/AboutDialog";
@@ -285,6 +294,19 @@ function CaptureApp() {
         />
 
         {open ? (
+          <Suspense
+            fallback={
+              /* The same shell the editor renders, so opening a capture does not
+                 flash an empty window while the chunk arrives. */
+              <main className="editor">
+                <div className="toolbar">
+                  <div className="toolbar-spacer" />
+                  {captureActions}
+                </div>
+                <div className="empty-state" />
+              </main>
+            }
+          >
           <Editor
             key={open.meta.id}
             meta={open.meta}
@@ -298,6 +320,7 @@ function CaptureApp() {
             clipboard={clipboard}
             onClipboardChange={setClipboard}
           />
+          </Suspense>
         ) : (
           <main className="editor">
             {/* Same single row as the editor's toolbar, so the capture buttons

@@ -121,8 +121,19 @@ export const saveCapturePiece = async (id: string, pieceId: string, png: Blob) =
  */
 async function readBytes(command: string, id: string): Promise<Blob> {
   const data = await invoke<ArrayBuffer | number[]>(command, { id });
-  const bytes = data instanceof ArrayBuffer ? data : new Uint8Array(data);
-  return new Blob([bytes], { type: "image/png" });
+  const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data);
+  return new Blob([bytes], { type: imageMime(bytes) });
+}
+
+/**
+ * Label a blob by what it actually contains.
+ *
+ * Thumbnails are JPEG now but captures saved earlier still have PNG ones, and
+ * both arrive through the same command - so the type has to come from the bytes
+ * rather than from which call was made.
+ */
+function imageMime(bytes: Uint8Array): string {
+  return bytes[0] === 0xff && bytes[1] === 0xd8 ? "image/jpeg" : "image/png";
 }
 
 export const readCaptureImage = (id: string) =>
@@ -132,6 +143,6 @@ export const readCaptureThumbnail = (id: string) =>
 
 export async function readCapturePiece(id: string, pieceId: string): Promise<Blob> {
   const data = await invoke<ArrayBuffer | number[]>("read_capture_piece", { id, pieceId });
-  const bytes = data instanceof ArrayBuffer ? data : new Uint8Array(data);
-  return new Blob([bytes], { type: "image/png" });
+  const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data);
+  return new Blob([bytes], { type: imageMime(bytes) });
 }

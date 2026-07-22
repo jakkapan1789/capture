@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! <app-data>/gallery/<id>.png         original, never touched again
-//! <app-data>/gallery/<id>.thumb.png   downscaled, for the gallery strip
+//! <app-data>/gallery/<id>.thumb.jpg   downscaled, for the gallery strip
 //! <app-data>/gallery/<id>.json        metadata + annotation objects
 //! <app-data>/gallery/<id>.piece-<pid>.png   flattened cut-out, if any
 //! ```
@@ -24,11 +24,23 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{anyhow, Context, Result};
-use image::{codecs::png::PngEncoder, ExtendedColorType, ImageEncoder, RgbaImage};
+use image::{
+    codecs::{jpeg::JpegEncoder, png::PngEncoder},
+    ExtendedColorType, ImageEncoder, RgbaImage,
+};
 use serde::{Deserialize, Serialize};
 
 /// Longest edge of a generated thumbnail, in pixels.
 const THUMB_MAX_EDGE: u32 = 320;
+
+/// JPEG quality for thumbnails.
+///
+/// A thumbnail is decoration for a 154x82 row, never something to edit, so
+/// lossless is the wrong trade: downscaling a screenshot destroys the flat runs
+/// PNG relies on, and the files came out at 54-125KB each - comparable to the
+/// full capture. The same image as JPEG is 13-16KB. Every one of them is read
+/// over IPC and decoded while the history is being drawn.
+const THUMB_QUALITY: u8 = 80;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,7 +99,29 @@ fn png_path(dir: &Path, id: &str) -> PathBuf {
 }
 
 fn thumb_path(dir: &Path, id: &str) -> PathBuf {
+    dir.join(format!("{id}.thumb.jpg"))
+}
+
+/// Thumbnails written before they became JPEGs. Still read, never written.
+fn legacy_thumb_path(dir: &Path, id: &str) -> PathBuf {
     dir.join(format!("{id}.thumb.png"))
+}
+
+/// Encode a thumbnail: JPEG, and therefore without an alpha channel.
+fn encode_thumb(image: &RgbaImage) -> Result<Vec<u8>> {
+    let mut rgb = Vec::with_capacity(image.as_raw().len() / 4 * 3);
+    for pixel in image.pixels() {
+        rgb.extend_from_slice(&pixel.0[..3]);
+    }
+
+    let mut out = Vec::new();
+    JpegEncoder::new_with_quality(&mut out, THUMB_QUALITY).write_image(
+        &rgb,
+        image.width(),
+        image.height(),
+        ExtendedColorType::Rgb8,
+    )?;
+    Ok(out)
 }
 
 fn json_path(dir: &Path, id: &str) -> PathBuf {
@@ -245,7 +279,7 @@ pub fn save_capture(
 
     let (thumb_width, thumb_height) = thumb_size(image.width(), image.height());
     let thumb = image::imageops::thumbnail(image, thumb_width, thumb_height);
-    fs::write(thumb_path(dir, &meta.id), encode_png(&thumb)?)?;
+    fs::write(thumb_path(dir, &meta.id), encode_thumb(&thumb)?)?;
 
     write_item(
         dir,
@@ -300,14 +334,15 @@ pub fn read_png(dir: &Path, id: &str) -> Result<Vec<u8>> {
 
 pub fn read_thumb(dir: &Path, id: &str) -> Result<Vec<u8>> {
     validate_id(id)?;
-    let path = thumb_path(dir, id);
-    // Captures saved before thumbnails existed, or a half-finished write, should not
-    // take the whole gallery down with them.
-    if path.exists() {
-        Ok(fs::read(path)?)
-    } else {
-        read_png(dir, id)
+    // Newest first, then the PNG thumbnails older captures still have. Captures
+    // saved before thumbnails existed at all fall back to the full image rather
+    // than taking the whole gallery down with them.
+    for path in [thumb_path(dir, id), legacy_thumb_path(dir, id)] {
+        if path.exists() {
+            return Ok(fs::read(path)?);
+        }
     }
+    read_png(dir, id)
 }
 
 /// All stored captures, newest first.
@@ -334,7 +369,12 @@ pub fn list_items(dir: &Path) -> Result<Vec<CaptureMeta>> {
 
 pub fn delete_item(dir: &Path, id: &str) -> Result<()> {
     validate_id(id)?;
-    for path in [png_path(dir, id), thumb_path(dir, id), json_path(dir, id)] {
+    for path in [
+        png_path(dir, id),
+        thumb_path(dir, id),
+        legacy_thumb_path(dir, id),
+        json_path(dir, id),
+    ] {
         // Missing files are fine; a partial write should still be fully removable.
         let _ = fs::remove_file(path);
     }
@@ -383,6 +423,48 @@ mod tests {
         assert!(write_piece(&dir, "cap-1", "../../evil", b"x").is_err());
         assert!(write_piece(&dir, "../../evil", "piece", b"x").is_err());
         assert!(read_piece(&dir, "cap-1", "../../evil").is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The gallery reads one of these per visible row, so what comes out of
+    /// `save_capture` has to actually be the compact format.
+    #[test]
+    fn thumbnails_are_stored_as_jpeg() {
+        let dir = std::env::temp_dir().join(format!("capture-thumb-{}", now_millis()));
+        let mut image = RgbaImage::new(800, 600);
+        for (x, y, pixel) in image.enumerate_pixels_mut() {
+            *pixel = image::Rgba([(x % 256) as u8, (y % 256) as u8, 90, 255]);
+        }
+
+        let meta = save_capture(&dir, &image, 1.0, (0.0, 0.0)).unwrap();
+        let thumb = read_thumb(&dir, &meta.id).unwrap();
+        assert_eq!(&thumb[..2], &[0xff, 0xd8], "thumbnail should be JPEG");
+
+        let decoded = image::load_from_memory(&thumb).unwrap();
+        let (w, h) = thumb_size(800, 600);
+        assert_eq!((decoded.width(), decoded.height()), (w, h));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Captures written before thumbnails were JPEG must keep working, and must
+    /// still be fully deletable.
+    #[test]
+    fn reads_and_deletes_png_thumbnails_from_older_captures() {
+        let dir = std::env::temp_dir().join(format!("capture-legacy-{}", now_millis()));
+        let image = RgbaImage::new(40, 30);
+        let meta = save_capture(&dir, &image, 1.0, (0.0, 0.0)).unwrap();
+
+        // Replace the JPEG with a PNG one, as an older build would have left it.
+        fs::remove_file(thumb_path(&dir, &meta.id)).unwrap();
+        let legacy = encode_png(&RgbaImage::new(8, 6)).unwrap();
+        fs::write(legacy_thumb_path(&dir, &meta.id), &legacy).unwrap();
+
+        assert_eq!(read_thumb(&dir, &meta.id).unwrap(), legacy, "should fall back to the PNG");
+
+        delete_item(&dir, &meta.id).unwrap();
+        assert!(!legacy_thumb_path(&dir, &meta.id).exists(), "legacy thumbnail should be deleted");
+
         let _ = fs::remove_dir_all(&dir);
     }
 

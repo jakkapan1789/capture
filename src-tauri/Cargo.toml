@@ -36,7 +36,7 @@ tokio = { version = "1", features = ["time"] }
 xcap = "=0.9.7"
 # Must resolve to the same `image` release xcap depends on (0.25), or the
 # RgbaImage it returns is a different type than the one we crop/encode with.
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-opener = "2.5.4"
 
