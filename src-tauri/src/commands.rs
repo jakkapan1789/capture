@@ -71,8 +71,9 @@ pub fn list_monitors(state: State<'_, AppState>) -> Result<Vec<MonitorInfo>, Str
 /// looking. TODO(windows): with multiple monitors this only lets you select within
 /// one display; a true virtual-desktop-spanning overlay needs per-OS work.
 ///
-/// Shared by the toolbar button and the global hotkey. Must run on the main
-/// thread - see `hotkey::apply`.
+/// Shared by the toolbar button and the global hotkey.
+///
+/// Must **not** be called from the main thread: see `open_region_overlay`.
 pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     // Check before the overlay appears: being asked to drag a region and only
     // then being told it was refused is a waste of the user's time. The hotkey
@@ -128,8 +129,15 @@ pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String>
     Ok(())
 }
 
+/// Must stay `async`.
+///
+/// A synchronous command runs on the main thread, and creating a WebView2 window
+/// from there deadlocks on Windows - the window creation waits for the event
+/// loop that the command is itself blocking. Tauri documents this on
+/// `WebviewWindowBuilder::new`. It happens to work on macOS, which is exactly
+/// why it went unnoticed.
 #[tauri::command]
-pub fn open_region_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+pub async fn open_region_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     show_region_overlay(&app)
 }
 

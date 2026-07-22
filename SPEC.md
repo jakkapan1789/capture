@@ -133,6 +133,20 @@ cleared via `queueMicrotask` collapses a gesture into exactly one undo step. A
 transform that returns the same array (a rejected step reorder, a no-op edit) is
 detected by identity and does not consume a step at all.
 
+## Window creation must not happen on the main thread
+
+`WebviewWindowBuilder::build()` deadlocks on Windows when called from a
+synchronous command or an event handler: creating a WebView2 window waits for
+the event loop that the caller is itself blocking. Tauri documents this on
+`WebviewWindowBuilder::new`.
+
+macOS does not care, which is exactly why it is easy to introduce and hard to
+notice — the region overlay froze the whole app on Windows with no error.
+
+So: `open_region_overlay` is `async` (Tauri runs async commands off the main
+thread), and the global-hotkey handler dispatches through
+`async_runtime::spawn_blocking` rather than `run_on_main_thread`.
+
 ## Drag tracking lives on `window`
 
 `mousemove`/`mouseup` are bound to `window`, registered once for the editor's

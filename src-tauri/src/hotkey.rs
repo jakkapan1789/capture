@@ -45,16 +45,14 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, accelerator: Option<&str>) -> Resul
             }
 
             let app = handle.clone();
-            // Creating a window off the main thread is not safe on macOS.
-            let dispatched = handle.run_on_main_thread(move || {
+            // Deliberately *off* the main thread. Creating a WebView2 window
+            // from the main thread deadlocks on Windows, and a global-hotkey
+            // callback is exactly the kind of handler Tauri warns about.
+            tauri::async_runtime::spawn_blocking(move || {
                 if let Err(error) = crate::commands::show_region_overlay(&app) {
                     eprintln!("hotkey capture failed: {error}");
                 }
             });
-
-            if let Err(error) = dispatched {
-                eprintln!("could not dispatch hotkey to the main thread: {error}");
-            }
         })
         .map_err(|error| {
             format!("could not register \"{accelerator}\" - another app may be using it ({error})")
