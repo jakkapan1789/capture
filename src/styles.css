@@ -651,6 +651,34 @@ button {
   cursor: not-allowed;
 }
 
+/* ---------- recognised text ---------- */
+
+.text-result {
+  display: block;
+  width: 100%;
+  min-height: 150px;
+  max-height: 45vh;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #131418;
+  color: var(--text);
+  /* Monospace: OCR output is being proofread against an image, and a fixed
+     advance makes a transposed character easier to spot. */
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+  /* Long unbroken strings must not widen the dialog. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.text-result:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
 /* ---------- settings groups ---------- */
 
 /* A settings page is a list of named groups, so a new preference has an obvious

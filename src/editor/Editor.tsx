@@ -62,6 +62,7 @@ import {
   type Rect as RectBounds,
   type Tool,
 } from "../lib/types";
+import TextResultDialog from "./TextResultDialog";
 import Toolbar from "./Toolbar";
 import ArrowShape from "./shapes/ArrowShape";
 import BlurRegion from "./shapes/BlurRegion";
@@ -217,6 +218,8 @@ export default function Editor({
    * only then be told it does nothing.
    */
   const [canReadText, setCanReadText] = useState(false);
+  /** Lines OCR found, shown for review. Null when the dialog is closed. */
+  const [foundText, setFoundText] = useState<string[] | null>(null);
 
   useEffect(() => {
     void textRecognitionAvailable()
@@ -947,14 +950,10 @@ export default function Editor({
               return;
             }
 
-            const text = lines.map((line) => line.text).join("\n");
-            try {
-              await writeText(text);
-            } catch (error) {
-              onNotify(`Read ${lines.length} lines, but could not copy: ${error}`);
-              return;
-            }
-            onNotify(lines.length === 1 ? "Copied 1 line" : `Copied ${lines.length} lines`);
+            // Shown rather than copied: OCR is good but not perfect, and a
+            // mistake handed straight to the clipboard is only discovered after
+            // it has been pasted somewhere.
+            setFoundText(lines.map((line) => line.text));
           })();
         }, "image/png");
         return;
@@ -1578,6 +1577,14 @@ export default function Editor({
           )}
         </div>
       </div>
+
+      {foundText && (
+        <TextResultDialog
+          lines={foundText}
+          onCopy={(text) => writeText(text)}
+          onClose={() => setFoundText(null)}
+        />
+      )}
 
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)}>

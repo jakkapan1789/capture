@@ -167,11 +167,17 @@ new plugin call cannot slip past by not being in the map.
 
 ## Reading text out of a capture
 
-The OCR tool drags a region and puts its text on the clipboard, the same gesture
-as Cut. It reads the **rendered** region, not the stored PNG - via the same
+The OCR tool drags a region and shows what it read, the same gesture as Cut. It reads the **rendered** region, not the stored PNG - via the same
 `rasterizeRegion` - which matters for more than convenience: reading the
 original pixels would let it see straight through a blur that was put there to
 hide something.
+
+The result is **shown, not copied**. Recognition is good but not perfect, and a
+misread heading handed straight to the clipboard is only discovered after it has
+been pasted somewhere. The dialog is editable and Copy sends whatever is in the
+box, so a stray character is fixed where it is noticed rather than in the
+document it lands in. The text is focused and selected on open, so Cmd+C still
+takes the whole thing without touching the mouse.
 
 Recognition is whatever the OS provides, behind a `TextRecognizer` trait for the
 same reason capture is. macOS uses **Vision**; Windows will use
