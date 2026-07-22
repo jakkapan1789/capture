@@ -35,6 +35,7 @@ pub fn run() {
             settings: Mutex::new(settings::Settings::default()),
             pending_frame: Mutex::new(None),
             scroll: Mutex::new(None),
+            hid_main_window: std::sync::atomic::AtomicBool::new(false),
         })
         .setup(|app| {
             let handle = app.handle().clone();

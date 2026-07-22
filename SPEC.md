@@ -354,6 +354,18 @@ limit: someone scrolling a brisk 1000px/s still leaves 650px of overlap on a
 700px view, far more than the join needs, and grabbing flat out would only spend
 battery.
 
+**Our own window gets out of the way.** A scrolling capture is the one flow where
+it has to: the user is about to scroll somebody else's window, and cannot do that
+through ours sitting in front of it. The main window hides before the overlay
+opens and is given back on every way out - finishing, cancelling from the panel,
+or pressing Escape on the overlay before anything started. Which of those hid it
+is recorded rather than guessed at, because the same overlay also serves one-shot
+region captures, which do not hide anything.
+
+For the same reason the scrolling path skips the pre-overlay screen grab that a
+one-shot region capture is cut from: it takes live frames instead, so that would
+be a screen-sized buffer paid for and never read.
+
 **The Stop panel is its own window, placed clear of the region.** Every frame is
 a fresh grab of the screen, so a panel over the region would be captured along
 with it. It goes above the region, below it if there is no room, and only in a

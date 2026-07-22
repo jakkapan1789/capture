@@ -50,6 +50,13 @@ pub struct AppState {
     pub pending_frame: Mutex<Option<crate::capture::Capture>>,
     /// The scrolling capture currently running, if any.
     pub scroll: Mutex<Option<crate::scroll::Session>>,
+    /// Whether a scrolling capture hid the main window and owes it a return.
+    ///
+    /// A scrolling capture is the one flow where our own window has to get out
+    /// of the way: the user is about to scroll somebody else's, and cannot do
+    /// that through ours. Every way out of the flow has to put it back, so who
+    /// hid it is recorded rather than guessed at.
+    pub hid_main_window: std::sync::atomic::AtomicBool,
 }
 
 /// Settings plus the runtime facts the UI needs to explain itself.
@@ -169,18 +176,23 @@ pub fn show_region_overlay_with<R: Runtime>(
     let position = *monitor.position();
     let size = *monitor.size();
 
-    // Grab the screen *now*, while nothing of ours is covering it.
-    let scale = monitor.scale_factor();
-    let cursor_logical = (cursor.x / scale, cursor.y / scale);
-    let frame = to_string_err(
-        app.state::<AppState>()
-            .capture
-            .capture_monitor_at(cursor_logical),
-    )?;
-    *app.state::<AppState>()
-        .pending_frame
-        .lock()
-        .map_err(|e| e.to_string())? = Some(frame);
+    // Grab the screen *now*, while nothing of ours is covering it - a one-shot
+    // region capture is cut from this rather than grabbed again once the overlay
+    // is up. A scrolling capture takes live frames instead, so it would only be
+    // paying for a screen-sized buffer it never reads.
+    if !for_scrolling {
+        let scale = monitor.scale_factor();
+        let cursor_logical = (cursor.x / scale, cursor.y / scale);
+        let frame = to_string_err(
+            app.state::<AppState>()
+                .capture
+                .capture_monitor_at(cursor_logical),
+        )?;
+        *app.state::<AppState>()
+            .pending_frame
+            .lock()
+            .map_err(|e| e.to_string())? = Some(frame);
+    }
 
 
     let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("index.html".into()))
@@ -232,6 +244,9 @@ pub async fn close_region_overlay<R: Runtime>(
     if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
         overlay.close().map_err(|e| e.to_string())?;
     }
+    // Backing out of a scrolling capture before it started still has to give the
+    // window back.
+    restore_main_window(&app);
     // Drop the frame; keeping it would waste a screen-sized buffer until the
     // next capture, and it would be stale by then anyway.
     if let Ok(mut pending) = state.pending_frame.lock() {
@@ -477,6 +492,16 @@ pub fn capture_file_path<R: Runtime>(app: AppHandle<R>, id: String) -> Result<St
 /// Must stay `async` for the same reason `open_region_overlay` does.
 #[tauri::command]
 pub async fn open_scroll_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    // Out of the way first. The overlay grabs the screen as it opens, and the
+    // window the user wants to scroll is behind ours.
+    if let Some(main) = app.get_webview_window(MAIN_LABEL) {
+        main.hide().map_err(|e| e.to_string())?;
+        app.state::<AppState>()
+            .hid_main_window
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        tokio::time::sleep(WINDOW_SETTLE).await;
+    }
+
     tauri::async_runtime::spawn_blocking(move || {
         // One overlay window serves both kinds of capture; this is how it is
         // told which one it is selecting for.
@@ -546,6 +571,9 @@ pub async fn stop_scroll_capture<R: Runtime>(app: AppHandle<R>) -> Result<Captur
 
         let dir = gallery_dir(&app)?;
         let meta = to_string_err(storage::save_capture(&dir, &image, scale_factor, origin))?;
+        app.state::<AppState>()
+            .hid_main_window
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         surface_main_window(&app);
         let _ = app.emit_to(MAIN_LABEL, CAPTURE_CREATED, meta.clone());
         Ok(meta)
@@ -564,10 +592,22 @@ pub async fn cancel_scroll_capture<R: Runtime>(app: AppHandle<R>) -> Result<(), 
             }
         }
         close_scroll_panel(&app);
+        restore_main_window(&app);
         Ok(())
     })
     .await
     .map_err(|error| format!("could not stop the capture: {error}"))?
+}
+
+/// Give the main window back, if a scrolling capture took it away.
+fn restore_main_window<R: Runtime>(app: &AppHandle<R>) {
+    if app
+        .state::<AppState>()
+        .hid_main_window
+        .swap(false, std::sync::atomic::Ordering::Relaxed)
+    {
+        surface_main_window(app);
+    }
 }
 
 fn close_scroll_panel<R: Runtime>(app: &AppHandle<R>) {
