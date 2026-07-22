@@ -410,14 +410,20 @@ holds with room to spare - but re-measure before lowering it further.
 The row scrolls sideways by design, so exceeding it is not a failure - but the
 pinned capture group starts getting clipped rather than staying pinned once the
 overflow is large. Screenshotting the widest reachable state put that boundary
-every group's right edge against the pinned capture buttons: at 1090px nothing
-is covered, at 1000px one group is. The widest state is a **step badge selected**
-at 847px, plus the 190px history strip, so `minWidth = 1090` leaves headroom for
-the crop+step combination the harness cannot reach.
+every group's right edge against whatever is pinned to the right of the row.
+The widest state is a **step badge selected** at 771px, plus the 190px history
+strip, so `minWidth = 1010` with headroom for the crop+step combination the
+harness cannot reach. Nothing is covered at 1010.
 
-This had drifted: the OCR tool and a text-background button were both added
-without re-measuring, and at the stale 980px the capture buttons were drawn over
-the size picker. That is what the rule below is for.
+Two things got it there. It had drifted first - the OCR tool and a
+text-background button were both added without re-measuring, so at the stale
+980px the capture buttons were drawn over the size picker. And the capture
+buttons themselves moved to the sidebar, which took the toolbar from 847px to
+771px: they belong to the app rather than to the picture being edited, and the
+row was full of things that belong to the picture.
+
+Only the settings button stays pinned now, which also makes overflow degrade
+better - one small button covers far less than three did.
 Either way the crop+step state scrolls slightly, rather than every window being
 sized for a state most sessions never enter.
 

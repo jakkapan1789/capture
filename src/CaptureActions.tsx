@@ -1,54 +1,41 @@
-import { CropIcon, GearIcon, MonitorIcon } from "./lib/icons";
+import { CropIcon, MonitorIcon } from "./lib/icons";
 
 /**
- * Capture and settings buttons.
+ * The two ways to take a capture.
  *
- * These used to sit in their own bar above everything. They live in the toolbar
- * now, which removes a whole row of chrome - the app name belongs in the window
- * title bar, not repeated inside the window.
+ * They sit at the top of the history sidebar rather than in the editor toolbar.
+ * That panel is already about captures - these make one, the list below browses
+ * them - and the toolbar had run out of width for the tools that belong to the
+ * picture you are actually editing.
  *
- * Rendered in the editor toolbar when a capture is open, and in a slim bar of
- * its own when nothing is, so capturing is always one click away.
+ * Labelled, unlike the tools: there is room here, and "which button takes a
+ * region?" should not be a hover-and-wait question for the app's primary action.
  */
 interface Props {
   onCaptureRegion: () => void;
   onCaptureScreen: () => void;
-  onOpenSettings: () => void;
 }
 
-export default function CaptureActions({
-  onCaptureRegion,
-  onCaptureScreen,
-  onOpenSettings,
-}: Props) {
+export default function CaptureActions({ onCaptureRegion, onCaptureScreen }: Props) {
   return (
-    <div className="btn-group trailing">
+    <div className="capture-actions">
       <button
         type="button"
-        className="icon-btn accent"
+        className="btn capture-btn primary"
         onClick={onCaptureRegion}
-        title="Capture region - drag to select an area"
-        aria-label="Capture region"
+        title="Drag to select an area of the screen"
       >
-        <CropIcon size={18} />
+        <CropIcon size={16} />
+        <span>Capture region</span>
       </button>
       <button
         type="button"
-        className="icon-btn"
+        className="btn capture-btn"
         onClick={onCaptureScreen}
         title="Capture the whole screen"
-        aria-label="Capture screen"
       >
-        <MonitorIcon size={18} />
-      </button>
-      <button
-        type="button"
-        className="icon-btn"
-        onClick={onOpenSettings}
-        title="Settings"
-        aria-label="Settings"
-      >
-        <GearIcon size={18} />
+        <MonitorIcon size={16} />
+        <span>Full screen</span>
       </button>
     </div>
   );
