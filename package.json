@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "node scripts/check-capabilities.mjs && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "dev:app": "bash scripts/run-macos.sh"
+    "dev:app": "bash scripts/run-macos.sh",
+    "check:capabilities": "node scripts/check-capabilities.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

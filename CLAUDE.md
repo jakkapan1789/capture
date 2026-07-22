@@ -87,6 +87,13 @@ different type than the one this code crops and encodes.
 codec crates are `opt-level = 3` in release while the binary stays `"s"`. Both
 are backed by measurements recorded in SPEC.md.
 
+**Plugin calls need a capability.** Tauri v2 gates every `@tauri-apps/plugin-*`
+call behind an entry in `src-tauri/capabilities/default.json`, and a missing one
+fails at runtime in the click that needed it. `tsc` sees a valid import and the
+headless harness stubs `invoke`, so neither notices. `npm run build` runs
+`scripts/check-capabilities.mjs`, which cross-references the frontend's imports
+against the granted list — adding a new plugin call means adding it to that map.
+
 ## Verifying frontend changes
 
 There is no test runner for the frontend. Canvas behaviour is verified by

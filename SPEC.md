@@ -152,6 +152,19 @@ grabbing again. The race is removed instead of out-waited, and the selection now
 shows the screen as it was when you started, which is also what every other
 capture tool does.
 
+## Plugin calls are gated, and the gate is checked
+
+Tauri v2 requires a capability entry for every plugin command. A missing one is
+invisible until the moment it is used: the import type-checks, and the headless
+harness stubs `invoke` so no capability is consulted. `clipboard-manager:
+allow-write-image` was granted and `allow-write-text` was not, which made the OCR
+tool look broken when recognition had actually succeeded and only the copy at the
+end of it was refused.
+
+`scripts/check-capabilities.mjs` runs as part of `npm run build` and fails if the
+frontend calls something ungranted. An unrecognised import is also an error, so a
+new plugin call cannot slip past by not being in the map.
+
 ## Reading text out of a capture
 
 The OCR tool drags a region and puts its text on the clipboard, the same gesture

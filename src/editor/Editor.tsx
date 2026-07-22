@@ -931,18 +931,30 @@ export default function Editor({
         canvas.toBlob((blob) => {
           if (!blob) return;
           void (async () => {
+            // Reading and copying are reported separately. Wrapping both in one
+            // catch blamed OCR for a clipboard failure, which sent an entirely
+            // correct recognition off to be debugged as a broken one.
+            let lines;
             try {
-              const lines = await recognizeText(blob);
-              if (lines.length === 0) {
-                onNotify("No text found there");
-                return;
-              }
-              const text = lines.map((line) => line.text).join("\n");
-              await writeText(text);
-              onNotify(lines.length === 1 ? "Copied 1 line" : `Copied ${lines.length} lines`);
+              lines = await recognizeText(blob);
             } catch (error) {
               onNotify(`Could not read text: ${error}`);
+              return;
             }
+
+            if (lines.length === 0) {
+              onNotify("No text found there");
+              return;
+            }
+
+            const text = lines.map((line) => line.text).join("\n");
+            try {
+              await writeText(text);
+            } catch (error) {
+              onNotify(`Read ${lines.length} lines, but could not copy: ${error}`);
+              return;
+            }
+            onNotify(lines.length === 1 ? "Copied 1 line" : `Copied ${lines.length} lines`);
           })();
         }, "image/png");
         return;

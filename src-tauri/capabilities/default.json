@@ -18,6 +18,7 @@
     "core:window:allow-outer-position",
     "core:window:allow-current-monitor",
     "clipboard-manager:allow-write-image",
+    "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-image",
     "core:image:allow-rgba",
     "core:image:allow-size",
