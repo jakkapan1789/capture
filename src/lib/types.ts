@@ -163,10 +163,9 @@ export type ImageSource =
        * Where the cut was taken from.
        *
        * A piece starts exactly over its source, so until it is dragged it is
-       * showing the picture back to itself. Knowing the origin is what lets it
-       * be drawn flat until then - a drop shadow around something that has not
-       * been lifted just looks like a smudge - and lets an untouched cut be
-       * abandoned rather than left as a no-op.
+       * showing the picture back to itself. Knowing the origin is what lets an
+       * untouched cut be abandoned rather than left as a no-op pair of objects
+       * that cancel each other out.
        */
       origin: { x: number; y: number };
       /**

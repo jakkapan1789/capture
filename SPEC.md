@@ -210,18 +210,20 @@ loop that is drawing the selection the user just made.
 
 ## A cut is not committed until it is moved
 
-A piece starts exactly over the hole it left, which means the picture looks
-untouched - and a drop shadow there reads as a smudge around a rectangle rather
-than as depth. So the shadow appears only once the piece has actually moved,
-which the annotation can answer because the cut records its `origin`.
+A cut-out carries no drop shadow at all. It is a piece of the capture that has
+been moved, not something laid on top of it, and a shadow around it made a
+rectangle look stuck on rather than cut out - on a fresh cut, sitting exactly
+over its own hole, it read as a smudge. Pasted images keep theirs, because those
+genuinely did come from somewhere else.
 
-The same fact decides what happens when you click away from one. A piece still
+A piece starting exactly over the hole it left also decides what happens when you
+click away from one. A piece still
 sitting on its own hole is showing the picture back to itself: nothing has been
 achieved, but the capture now carries two objects that cancel out, and a stray
 drag later would tear a white rectangle into it. Clicking away, pressing Escape
 or switching tools withdraws that pair - the piece *and* its hole, which is why
-the source records `holeId`. A piece moved by even one pixel is deliberate work
-and is left alone.
+the source records `origin` and `holeId`. A piece moved by even one pixel is
+deliberate work and is left alone.
 
 Both are one mutation, so undo brings the pair back together.
 

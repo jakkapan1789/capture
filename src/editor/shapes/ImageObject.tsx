@@ -42,19 +42,15 @@ export default function ImageObject({
   const { x, y, width, height, source } = annotation;
 
   /**
-   * Whether to draw this as lifted off the picture.
+   * Whether to draw this as floating above the picture.
    *
-   * A freshly cut piece sits exactly over the hole it left, so it is showing the
-   * picture back to itself - and a drop shadow there reads as a smudge around a
-   * rectangle rather than as depth. It gets its shadow once it has actually been
-   * moved. Pasted images are always lifted, so they always get one.
+   * A cut-out never is. It is a piece of the capture, moved - drawing a shadow
+   * around it made a rectangle look stuck on rather than cut out, wherever it
+   * ended up. A pasted image genuinely did come from somewhere else, so it keeps
+   * the separation.
    */
-  const lifted =
-    source.kind === "capture"
-      ? x !== source.crop.x || y !== source.crop.y
-      : source.kind === "piece"
-        ? x !== source.origin.x || y !== source.origin.y
-        : true;
+  const floating = source.kind === "external";
+
   // A cut-out from another capture must draw that capture's pixels, not the
   // ones underneath it here.
   const image =
@@ -79,8 +75,8 @@ export default function ImageObject({
       crop={source.kind === "capture" ? source.crop : undefined}
       draggable={draggable}
       shadowColor="#000000"
-      shadowBlur={lifted ? 8 : 0}
-      shadowOpacity={lifted ? 0.35 : 0}
+      shadowBlur={floating ? 8 : 0}
+      shadowOpacity={floating ? 0.35 : 0}
       onDragEnd={(event) => onChange({ x: event.target.x(), y: event.target.y() })}
       onTransformEnd={(event) => {
         // Fold Konva's scale back into width/height so the crop rectangle and
