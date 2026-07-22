@@ -1186,6 +1186,9 @@ button {
 .about-facts dd {
   margin: 0;
   min-width: 0;
+  /* Selectable on purpose: with the "copy details" button gone, the version and
+     platform still need to be quotable in a bug report. */
+  user-select: text;
 }
 
 .about-path {

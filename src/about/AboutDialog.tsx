@@ -38,7 +38,6 @@ interface Props {
 export default function AboutDialog({ onClose }: Props) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [notices, setNotices] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     void appInfo().then(setInfo).catch(() => setInfo(null));
@@ -55,17 +54,6 @@ export default function AboutDialog({ onClose }: Props) {
   const platform = info
     ? `${OS_NAMES[info.os] ?? info.os} ${info.arch} · Tauri ${info.tauriVersion}`
     : "";
-
-  /** Everything a bug report needs, so nobody has to ask for it. */
-  const diagnostics = info
-    ? `${info.name} ${info.version}\n${platform}`
-    : "";
-
-  const reportBug = () => {
-    const subject = encodeURIComponent(`Capture ${info?.version ?? ""} - bug report`);
-    const body = encodeURIComponent(`\n\n---\n${diagnostics}\n`);
-    void openUrl(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
-  };
 
   return (
     <div className="modal-backdrop">
@@ -93,6 +81,19 @@ export default function AboutDialog({ onClose }: Props) {
           <div>
             <dt>Licence</dt>
             <dd>MIT — free to use, modify and share</dd>
+          </div>
+          <div>
+            <dt>Support</dt>
+            <dd>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => void openUrl(`mailto:${SUPPORT_EMAIL}`)}
+                title="Write to support"
+              >
+                {SUPPORT_EMAIL}
+              </button>
+            </dd>
           </div>
           <div>
             <dt>Platform</dt>
@@ -143,22 +144,6 @@ export default function AboutDialog({ onClose }: Props) {
           <span className="about-copyright">
             © {COPYRIGHT_YEAR} {AUTHOR}
           </span>
-          <div className="about-actions">
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                void navigator.clipboard.writeText(`${diagnostics}\n${SUPPORT_EMAIL}`);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1800);
-              }}
-            >
-              {copied ? "Copied" : "Copy details"}
-            </button>
-            <button type="button" className="btn primary" onClick={reportBug}>
-              Contact support
-            </button>
-          </div>
         </footer>
       </div>
     </div>

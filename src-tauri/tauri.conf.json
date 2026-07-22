@@ -17,7 +17,9 @@
         "width": 1160,
         "height": 640,
         "minWidth": 1160,
-        "minHeight": 520
+        "minHeight": 520,
+        "theme": "Dark",
+        "backgroundColor": "#16171a"
       }
     ],
     "security": {
