@@ -44,9 +44,6 @@ const TOOLS: {
 interface Props {
   /** Tools this platform cannot run, shown but not selectable. */
   disabledTools?: Tool[];
-  /** Whether text is drawn on an opaque plate. */
-  textBackground: boolean;
-  onTextBackgroundChange: (on: boolean) => void;
   tool: Tool;
   onToolChange: (tool: Tool) => void;
   /** The selected annotation when exactly one is selected, else null. */
@@ -73,8 +70,6 @@ interface Props {
 export default function Toolbar({
   tool,
   disabledTools,
-  textBackground,
-  onTextBackgroundChange,
   onToolChange,
   selected,
   hasCrop,
@@ -187,31 +182,6 @@ export default function Toolbar({
 
       {showFontSize && (
         <div className="btn-group">
-          {/* Paint's Opaque/Transparent. The button previews its own effect -
-              the letter as it will be drawn, with or without the plate behind
-              it - because an icon of a "T" sat next to the Text tool's "T" and
-              said nothing about what it did. */}
-          <button
-            type="button"
-            className="btn text-plate-btn"
-            aria-pressed={textBackground}
-            onClick={() => onTextBackgroundChange(!textBackground)}
-            title={
-              textBackground
-                ? "Text sits on a solid background - click to make it transparent"
-                : "Text is transparent - click to put it on a solid background"
-            }
-            aria-label="Solid background behind text"
-          >
-            <span
-              className={textBackground ? "text-plate-preview on" : "text-plate-preview"}
-              style={{ color }}
-              aria-hidden="true"
-            >
-              T
-            </span>
-          </button>
-
           <span className="btn-group-label">Size</span>
           <Select
             className="size-select"

@@ -26,7 +26,14 @@ import {
   Transformer,
 } from "react-konva";
 
-import { CopyIcon, DownloadIcon, ImageIcon, PasteIcon, TrashIcon } from "../lib/icons";
+import {
+  CopyIcon,
+  DownloadIcon,
+  ImageIcon,
+  PasteIcon,
+  TextPlateIcon,
+  TrashIcon,
+} from "../lib/icons";
 import {
   loadImageFromBlob,
   placeInViewport,
@@ -1321,21 +1328,10 @@ export default function Editor({
     }
   };
 
-  const applyTextBackground = (on: boolean) => {
-    setStyle((previous) => ({ ...previous, textBackground: on }));
-    for (const annotation of selected) {
-      if (annotation.type === "text") {
-        update(annotation.id, { background: on ? TEXT_BACKGROUND : undefined });
-      }
-    }
-  };
-
   // Show the controls' current value from the selection when there is one, so the
   // toolbar reflects what you are looking at rather than what you last picked.
   const activeColor = (single && colorOf(single)) ?? style.color;
   const activeFontSize = single?.type === "text" ? single.fontSize : style.fontSize;
-  const activeTextBackground =
-    single?.type === "text" ? single.background !== undefined : style.textBackground;
   const showColor =
     ["text", "arrow", "rect", "step"].includes(tool) ||
     selected.some((annotation) => colorOf(annotation) !== null);
@@ -1343,6 +1339,23 @@ export default function Editor({
 
   const draggableNow = tool === "select";
   const menuDeletable = menu ? menu.targetId !== null || selectedIds.length > 0 : false;
+
+  /**
+   * Text objects the menu applies to.
+   *
+   * The opaque-plate switch lives here rather than in the toolbar. It is a
+   * property of one object, it is not needed often enough to hold a permanent
+   * slot, and the row had run out of width - the capture buttons were being
+   * drawn over the size picker.
+   */
+  const menuTexts = menu
+    ? annotations.filter(
+        (annotation): annotation is Extract<Annotation, { type: "text" }> =>
+          annotation.type === "text" &&
+          (annotation.id === menu.targetId || selectedIds.includes(annotation.id)),
+      )
+    : [];
+  const menuPlateOn = menuTexts.length > 0 && menuTexts.every((a) => a.background !== undefined);
 
   return (
     <div className="editor">
@@ -1362,8 +1375,6 @@ export default function Editor({
         showFontSize={showFontSize}
         fontSize={activeFontSize}
         onFontSizeChange={applyFontSize}
-        textBackground={activeTextBackground}
-        onTextBackgroundChange={applyTextBackground}
         onResetCrop={() => crop && remove([crop.id])}
         onReorderStep={(delta) => single && reorderStep(single.id, delta)}
         onToggleBlurMode={() =>
@@ -1763,6 +1774,24 @@ export default function Editor({
 
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)}>
+            {menuTexts.length > 0 && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const on = !menuPlateOn;
+                  setStyle((previous) => ({ ...previous, textBackground: on }));
+                  for (const text of menuTexts) {
+                    update(text.id, { background: on ? TEXT_BACKGROUND : undefined });
+                  }
+                  setMenu(null);
+                }}
+              >
+                <TextPlateIcon />
+                <span>{menuPlateOn ? "Remove background" : "Add background"}</span>
+              </button>
+            )}
+
             {menuDeletable && (
               <button
                 type="button"

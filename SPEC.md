@@ -252,12 +252,12 @@ Clicking without dragging places a label that grows with what is typed instead.
 Paint makes you size a box either way; for a two-word caption on a screenshot
 that is work for nothing, and the two modes cost one optional field.
 
-Text can sit on an **opaque plate** - Paint's Opaque/Transparent - toggled from
-the toolbar and remembered for the next one, like colour and size. The toggle
-previews its own effect: the letter drawn in the current colour, with or without
-the plate behind it. It was an icon of a "T" first, which sat three buttons away
-from the Text tool's "T" and prompted "what is this?" - a symbol that has to be
-decoded is worse than a control that simply shows its result. On a busy
+Text can sit on an **opaque plate** - Paint's Opaque/Transparent - switched from
+the right-click menu on the text. It was a toolbar button twice: first as an icon
+of a "T", which sat a few buttons from the Text tool's own "T" and drew a "what
+is this?"; then as a preview of its own effect, which was clear but cost width
+the row did not have. It is a property of one object and is not reached often, so
+the menu is where it belongs. On a busy
 screenshot it is the difference between a caption you can read and one lost in
 the picture.
 
@@ -410,9 +410,14 @@ holds with room to spare - but re-measure before lowering it further.
 The row scrolls sideways by design, so exceeding it is not a failure - but the
 pinned capture group starts getting clipped rather than staying pinned once the
 overflow is large. Screenshotting the widest reachable state put that boundary
-between 900px (settings gear clipped) and 1020px (clean) - measured with the
-history strip at its old 232px, which left the toolbar 788px. The strip is 190px
-now, so `minWidth = 980` gives the toolbar the same room it was measured with.
+every group's right edge against the pinned capture buttons: at 1090px nothing
+is covered, at 1000px one group is. The widest state is a **step badge selected**
+at 847px, plus the 190px history strip, so `minWidth = 1090` leaves headroom for
+the crop+step combination the harness cannot reach.
+
+This had drifted: the OCR tool and a text-background button were both added
+without re-measuring, and at the stale 980px the capture buttons were drawn over
+the size picker. That is what the rule below is for.
 Either way the crop+step state scrolls slightly, rather than every window being
 sized for a state most sessions never enter.
 

@@ -245,6 +245,15 @@ export const OcrIcon = (props: { size?: number }) => (
   </Svg>
 );
 
+/** A letter on a filled plate: the opaque text background. */
+export const TextPlateIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+    <path d="M8.8 10 H15.2" />
+    <path d="M12 10 V14.6" />
+  </Svg>
+);
+
 export const InfoIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <circle cx="12" cy="12" r="9" />
