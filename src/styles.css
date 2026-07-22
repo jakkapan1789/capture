@@ -637,11 +637,101 @@ button {
   cursor: not-allowed;
 }
 
+/* ---------- settings groups ---------- */
+
+/* A settings page is a list of named groups, so a new preference has an obvious
+   home instead of being appended to whatever row happens to be last. */
+.setting-group + .setting-group {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.setting-group-title {
+  margin: 0 0 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.setting + .setting {
+  margin-top: 14px;
+}
+
 .setting {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+/* Buttons that act on the setting directly above them, rather than on the
+   dialog as a whole - which is where they used to live, and where they read as
+   applying to every preference on the page. */
+.setting-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ---------- toggle switch ---------- */
+
+.toggle {
+  flex-shrink: 0;
+  position: relative;
+  width: 40px;
+  height: 23px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #131418;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.toggle:hover:not(:disabled) {
+  border-color: #4a4d57;
+}
+
+.toggle[aria-checked="true"] {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #d6d8de;
+  transform: translateY(-50%);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.toggle[aria-checked="true"] .toggle-knob {
+  background: #ffffff;
+  transform: translate(17px, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle,
+  .toggle-knob {
+    transition: none;
+  }
 }
 
 .setting-text {

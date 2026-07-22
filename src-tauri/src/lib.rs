@@ -71,6 +71,7 @@ pub fn run() {
             commands::app_info,
             commands::get_settings,
             commands::set_capture_hotkey,
+            commands::update_preferences,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

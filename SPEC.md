@@ -352,6 +352,34 @@ auto-saving gallery with re-editable history.
 Remaining: window-specific capture, delay timer, multi-monitor picker, SQLite
 history index + auto-cleanup, pin-on-top, JPG/WebP export.
 
+## Preferences
+
+Settings are a list of named groups, so a new preference has an obvious home
+rather than being appended to whatever row happened to be last. The buttons that
+act on the hotkey sit with the hotkey; in the footer they read as applying to
+every preference on the page.
+
+Preferences that cannot fail go through one `update_preferences` command taking
+a **partial** patch, so changing one can never clobber another - and adding the
+next one is a field in three places rather than a new command. The hotkey keeps
+its own command because setting it can fail and has to be rolled back, which is
+a different shape of operation.
+
+`auto_copy_to_clipboard` defaults to **off**. The clipboard is shared with
+everything else the user is doing, and silently replacing its contents is not
+something to opt someone into.
+
+The app keeps its own copy of the settings, because the capture path needs to
+know about auto-copy without waiting for a dialog. Two rules keep that copy
+honest:
+
+- The listener reads it through a **ref**. Registered once, it would otherwise
+  close over the value that was current at mount, and toggling the preference
+  would do nothing until a reload.
+- The dialog reports the settings it **loads**, not only the ones it saves. If
+  the two copies ever disagreed, the app would act on a value the user could not
+  see; opening the dialog reconciles them. A test covers exactly this.
+
 ### Global hotkey
 
 Settings live in `<app-data>/settings.json`, separate from the gallery so clearing

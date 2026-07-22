@@ -1,14 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { buildAccelerator, formatAccelerator, isModifierCode, MAX_KEYS } from "../lib/hotkey";
-import { getSettings, setCaptureHotkey, type SettingsView } from "../lib/ipc";
+import {
+  getSettings,
+  setCaptureHotkey,
+  updatePreferences,
+  type PreferencesPatch,
+  type SettingsView,
+} from "../lib/ipc";
+import Toggle from "../components/Toggle";
 
 interface Props {
   onClose: () => void;
   onShowAbout: () => void;
+  /**
+   * Announces every saved change, so the rest of the app can act on a preference
+   * without polling for it. Auto-copy is read on the capture path.
+   */
+  onSettingsChange?: (settings: SettingsView) => void;
 }
 
-export default function SettingsDialog({ onClose, onShowAbout }: Props) {
+export default function SettingsDialog({ onClose, onShowAbout, onSettingsChange }: Props) {
   const [settings, setSettings] = useState<SettingsView | null>(null);
   const [recording, setRecording] = useState(false);
   /** Modifiers shown live while the user is still holding keys down. */
@@ -23,17 +35,48 @@ export default function SettingsDialog({ onClose, onShowAbout }: Props) {
   const [liveIssue, setLiveIssue] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  /**
+   * Record a settings view, in the one place every read and write funnels
+   * through.
+   *
+   * Reporting on *load* as well as on save matters: the app keeps its own copy
+   * to decide things like auto-copy, and if the two ever disagree the app acts
+   * on a value the user cannot see. Opening this dialog now reconciles them.
+   */
+  const applyView = useCallback(
+    (view: SettingsView) => {
+      setSettings(view);
+      onSettingsChange?.(view);
+    },
+    [onSettingsChange],
+  );
+
   useEffect(() => {
     void getSettings()
-      .then(setSettings)
+      .then(applyView)
       .catch((cause) => setError(`Could not load settings: ${cause}`));
-  }, []);
+  }, [applyView]);
+
+  const setPreference = useCallback(
+    async (patch: PreferencesPatch) => {
+      setSaving(true);
+      setError(null);
+      try {
+        applyView(await updatePreferences(patch));
+      } catch (cause) {
+        setError(String(cause));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [applyView],
+  );
 
   const commit = useCallback(async (accelerator: string | null) => {
     setSaving(true);
     setError(null);
     try {
-      setSettings(await setCaptureHotkey(accelerator));
+      applyView(await setCaptureHotkey(accelerator));
     } catch (cause) {
       // The backend re-registers the previous hotkey on failure, so the old one
       // is still live - say so rather than leaving the user guessing.
@@ -43,7 +86,7 @@ export default function SettingsDialog({ onClose, onShowAbout }: Props) {
       setRecording(false);
       setHeld("");
     }
-  }, []);
+  }, [applyView]);
 
   /**
    * Key capture, committed on release rather than on the first non-modifier key.
@@ -176,52 +219,96 @@ export default function SettingsDialog({ onClose, onShowAbout }: Props) {
           </button>
         </header>
 
-        <section className="setting">
-          <div className="setting-text">
-            <strong>Capture region</strong>
-            <span>Works even when Capture is in the background.</span>
+        <section className="setting-group">
+          <h3 className="setting-group-title">Shortcut</h3>
+
+          <div className="setting">
+            <div className="setting-text">
+              <strong>Capture region</strong>
+              <span>Works even when Capture is in the background.</span>
+            </div>
+
+            <button
+              type="button"
+              className={recording ? "hotkey-chip recording" : "hotkey-chip"}
+              onClick={() => {
+                setError(null);
+                setLiveIssue(null);
+                setRecording(true);
+                setHeld("");
+              }}
+              disabled={saving}
+              title={
+                hotkey
+                  ? `${formatAccelerator(hotkey)} - click, then hold the new combination and let go`
+                  : "Click, then hold the combination you want and let go"
+              }
+              aria-label="Change the capture region shortcut"
+            >
+              {chipLabel}
+            </button>
           </div>
 
-          <button
-            type="button"
-            className={recording ? "hotkey-chip recording" : "hotkey-chip"}
-            onClick={() => {
-              setError(null);
-              setLiveIssue(null);
-              setRecording(true);
-              setHeld("");
-            }}
-            disabled={saving}
-            title={
-              hotkey
-                ? `${formatAccelerator(hotkey)} - click, then hold the new combination and let go`
-                : "Click, then hold the combination you want and let go"
-            }
-            aria-label="Change the capture region shortcut"
-          >
-            {chipLabel}
-          </button>
+          {/* One fixed-height slot for every message this dialog can show. They
+              are mutually exclusive in practice, and reserving the space stops
+              the dialog from growing and shrinking under the pointer. */}
+          <div className="setting-message">
+            {error ? (
+              <p className="setting-error">{error}</p>
+            ) : recording && liveIssue ? (
+              <p className="setting-hint warn">{liveIssue}</p>
+            ) : recording ? (
+              <p className="setting-hint">{`Hold up to ${MAX_KEYS} keys, then let go.`}</p>
+            ) : settings && hotkey && !settings.hotkeyRegistered ? (
+              // Saved but refused by the OS - usually another app owns it.
+              <p className="setting-warning">
+                This shortcut is not active. Another application is probably using it.
+              </p>
+            ) : (
+              <p className="setting-hint">Click the shortcut to change it.</p>
+            )}
+          </div>
+
+          {/* Beside the shortcut they act on. In the footer they read as
+              applying to the whole page, which is wrong now there is more than
+              one preference on it. */}
+          <div className="setting-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={saving || !settings || hotkey === settings.defaultHotkey}
+              onClick={() => settings && void commit(settings.defaultHotkey)}
+            >
+              Reset to default
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={saving || !hotkey}
+              onClick={() => void commit(null)}
+            >
+              Disable
+            </button>
+          </div>
         </section>
 
-        {/* One fixed-height slot for every message this dialog can show. They
-            are mutually exclusive in practice, and reserving the space stops the
-            dialog from growing and shrinking under the pointer as you click. */}
-        <div className="setting-message">
-          {error ? (
-            <p className="setting-error">{error}</p>
-          ) : recording && liveIssue ? (
-            <p className="setting-hint warn">{liveIssue}</p>
-          ) : recording ? (
-            <p className="setting-hint">{`Hold up to ${MAX_KEYS} keys, then let go.`}</p>
-          ) : settings && hotkey && !settings.hotkeyRegistered ? (
-            // Saved but refused by the OS - usually another app owns it.
-            <p className="setting-warning">
-              This shortcut is not active. Another application is probably using it.
-            </p>
-          ) : (
-            <p className="setting-hint">Click the shortcut to change it.</p>
-          )}
-        </div>
+        <section className="setting-group">
+          <h3 className="setting-group-title">Capture</h3>
+
+          <div className="setting">
+            <div className="setting-text">
+              <strong>Copy to clipboard automatically</strong>
+              <span>Every new capture is copied the moment it is taken.</span>
+            </div>
+
+            <Toggle
+              label="Copy every new capture to the clipboard"
+              checked={settings?.autoCopyToClipboard ?? false}
+              disabled={saving || !settings}
+              onChange={(checked) => void setPreference({ autoCopyToClipboard: checked })}
+            />
+          </div>
+        </section>
 
         <footer className="modal-footer">
           {/* Left-aligned: About is not an action on these settings. */}
@@ -229,23 +316,11 @@ export default function SettingsDialog({ onClose, onShowAbout }: Props) {
             About Capture
           </button>
           <div className="modal-footer-spacer" />
-          <button
-            type="button"
-            className="btn"
-            disabled={saving || !settings || hotkey === settings.defaultHotkey}
-            onClick={() => settings && void commit(settings.defaultHotkey)}
-          >
-            Reset to default
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={saving || !hotkey}
-            onClick={() => void commit(null)}
-          >
-            Disable
+          <button type="button" className="btn" onClick={onClose}>
+            Done
           </button>
         </footer>
+
       </div>
     </div>
   );

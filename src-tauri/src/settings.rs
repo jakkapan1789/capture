@@ -20,12 +20,38 @@ pub const DEFAULT_HOTKEY: &str = "CommandOrControl+Shift+2";
 pub struct Settings {
     /// Accelerator for region capture, or `None` when the hotkey is switched off.
     pub capture_region_hotkey: Option<String>,
+    /// Copy every new capture to the clipboard as soon as it is taken.
+    ///
+    /// Off by default: the clipboard is shared with everything else the user is
+    /// doing, and silently replacing what is in it is not a thing to opt someone
+    /// into.
+    pub auto_copy_to_clipboard: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             capture_region_hotkey: Some(DEFAULT_HOTKEY.to_string()),
+            auto_copy_to_clipboard: false,
+        }
+    }
+}
+
+/// A partial update. Every field is optional, so the frontend can change one
+/// preference without having to send - and risk clobbering - the others.
+///
+/// The hotkey is deliberately not here: setting it can fail, and it has to be
+/// rolled back when it does, which is a different shape of operation.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PreferencesPatch {
+    pub auto_copy_to_clipboard: Option<bool>,
+}
+
+impl Settings {
+    pub fn apply(&mut self, patch: PreferencesPatch) {
+        if let Some(value) = patch.auto_copy_to_clipboard {
+            self.auto_copy_to_clipboard = value;
         }
     }
 }
@@ -67,13 +93,14 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("capture-settings-{}", std::process::id()));
         let path = dir.join("settings.json");
 
-        save(&path, &Settings { capture_region_hotkey: None }).unwrap();
+        save(&path, &Settings { capture_region_hotkey: None, ..Settings::default() }).unwrap();
         assert_eq!(load(&path).capture_region_hotkey, None);
 
         save(
             &path,
             &Settings {
                 capture_region_hotkey: Some("Alt+Shift+KeyC".into()),
+                ..Settings::default()
             },
         )
         .unwrap();
@@ -96,6 +123,43 @@ mod tests {
             load(&path).capture_region_hotkey.as_deref(),
             Some(DEFAULT_HOTKEY)
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_patch_only_changes_the_field_it_names() {
+        let mut settings = Settings {
+            capture_region_hotkey: Some("Alt+KeyQ".into()),
+            auto_copy_to_clipboard: false,
+        };
+
+        settings.apply(PreferencesPatch {
+            auto_copy_to_clipboard: Some(true),
+        });
+        assert!(settings.auto_copy_to_clipboard);
+        assert_eq!(
+            settings.capture_region_hotkey.as_deref(),
+            Some("Alt+KeyQ"),
+            "the hotkey must survive an unrelated preference change"
+        );
+
+        settings.apply(PreferencesPatch::default());
+        assert!(settings.auto_copy_to_clipboard, "an empty patch changes nothing");
+    }
+
+    /// Settings files written before a preference existed must still load, with
+    /// the new field taking its default rather than failing the whole parse.
+    #[test]
+    fn loads_a_settings_file_that_predates_a_preference() {
+        let dir = std::env::temp_dir().join(format!("capture-old-settings-{}", std::process::id()));
+        let path = dir.join("settings.json");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(&path, br#"{"captureRegionHotkey":"Alt+KeyQ"}"#).unwrap();
+
+        let settings = load(&path);
+        assert_eq!(settings.capture_region_hotkey.as_deref(), Some("Alt+KeyQ"));
+        assert!(!settings.auto_copy_to_clipboard);
+
         let _ = fs::remove_dir_all(&dir);
     }
 }

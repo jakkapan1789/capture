@@ -34,8 +34,10 @@ import {
   loadGalleryItem,
   openRegionOverlay,
   captureFilePath,
+  getSettings,
   readCaptureImage,
   type CaptureMeta,
+  type SettingsView,
 } from "./lib/ipc";
 import { loadImageFromBlob } from "./lib/images";
 import type { Annotation } from "./lib/types";
@@ -84,6 +86,23 @@ function CaptureApp() {
    */
   const [pendingId, setPendingId] = useState<string | null>(null);
 
+  /**
+   * Preferences, mirrored here because the capture path needs them.
+   *
+   * Held in a ref as well: the `capture://created` listener is registered once
+   * and would otherwise capture the value that was current when it was set up,
+   * so toggling auto-copy would not take effect until the next reload.
+   */
+  const [settings, setSettings] = useState<SettingsView | null>(null);
+  const settingsRef = useRef<SettingsView | null>(null);
+  settingsRef.current = settings;
+
+  useEffect(() => {
+    void getSettings()
+      .then(setSettings)
+      .catch((error) => console.error("could not read settings", error));
+  }, []);
+
   const flash = useCallback((message: string) => {
     setStatus(message);
     setTimeout(() => setStatus(null), 2600);
@@ -114,16 +133,43 @@ function CaptureApp() {
     void refresh();
   }, [refresh]);
 
+  /**
+   * Put a capture's original PNG on the clipboard.
+   *
+   * The original rather than a flattened render: at the moment a capture is
+   * taken there is nothing annotated yet, and reading the file avoids waiting
+   * for the editor to mount and rasterise.
+   */
+  const copyCaptureToClipboard = useCallback(
+    async (id: string) => {
+      try {
+        const blob = await readCaptureImage(id);
+        await writeImage(new Uint8Array(await blob.arrayBuffer()));
+        return true;
+      } catch (error) {
+        console.error("auto-copy failed", error);
+        return false;
+      }
+    },
+    [],
+  );
+
   // Rust announces a new capture once it is safely on disk.
   useEffect(() => {
     const unlisten = listen<CaptureMeta>(CAPTURE_CREATED, (event) => {
       void refresh();
       void openCapture(event.payload.id);
+
+      if (settingsRef.current?.autoCopyToClipboard) {
+        void copyCaptureToClipboard(event.payload.id).then((ok) =>
+          flash(ok ? "Captured and copied to clipboard" : "Captured - copy to clipboard failed"),
+        );
+      }
     });
     return () => {
       void unlisten.then((off) => off());
     };
-  }, [refresh, openCapture]);
+  }, [refresh, openCapture, copyCaptureToClipboard, flash]);
 
   // The macOS app menu's About item is the standard entry point; Windows has no
   // menu bar here, which is why Settings also links to it.
@@ -341,6 +387,7 @@ function CaptureApp() {
       {settingsOpen && (
         <SettingsDialog
           onClose={() => setSettingsOpen(false)}
+          onSettingsChange={setSettings}
           onShowAbout={() => {
             setSettingsOpen(false);
             setAboutOpen(true);

@@ -42,6 +42,16 @@ export interface SettingsView {
   /** False when a hotkey is set but the OS refused it (another app owns it). */
   hotkeyRegistered: boolean;
   defaultHotkey: string;
+  /** Copy every new capture to the clipboard the moment it is taken. */
+  autoCopyToClipboard: boolean;
+}
+
+/**
+ * A partial settings update. Omitted fields are left alone, so changing one
+ * preference cannot clobber another.
+ */
+export interface PreferencesPatch {
+  autoCopyToClipboard?: boolean;
 }
 
 export const CAPTURE_CREATED = "capture://created";
@@ -73,6 +83,10 @@ export const getSettings = () => invoke<SettingsView>("get_settings");
 /** Pass `null` to switch the hotkey off entirely. */
 export const setCaptureHotkey = (hotkeyAccelerator: string | null) =>
   invoke<SettingsView>("set_capture_hotkey", { hotkeyAccelerator });
+
+/** Change preferences that cannot fail. The hotkey has its own command. */
+export const updatePreferences = (patch: PreferencesPatch) =>
+  invoke<SettingsView>("update_preferences", { patch });
 
 export const listMonitors = () => invoke<MonitorInfo[]>("list_monitors");
 export const screenPermissionGranted = () =>

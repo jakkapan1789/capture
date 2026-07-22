@@ -53,6 +53,7 @@ pub struct SettingsView {
     /// because another app already owns that combination.
     pub hotkey_registered: bool,
     pub default_hotkey: String,
+    pub auto_copy_to_clipboard: bool,
 }
 
 /// `anyhow` errors do not implement `Serialize`, and the frontend only ever shows
@@ -494,7 +495,21 @@ fn view<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> SettingsView {
             .unwrap_or(false),
         capture_region_hotkey: settings.capture_region_hotkey.clone(),
         default_hotkey: settings::DEFAULT_HOTKEY.to_string(),
+        auto_copy_to_clipboard: settings.auto_copy_to_clipboard,
     }
+}
+
+/// Change preferences that cannot fail, leaving unnamed ones alone.
+#[tauri::command]
+pub fn update_preferences<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    patch: settings::PreferencesPatch,
+) -> Result<SettingsView, String> {
+    let mut settings = state.settings.lock().map_err(|e| e.to_string())?;
+    settings.apply(patch);
+    to_string_err(settings::save(&settings_path(&app)?, &settings))?;
+    Ok(view(&app, &settings))
 }
 
 #[tauri::command]
