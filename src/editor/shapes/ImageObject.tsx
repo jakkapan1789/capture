@@ -6,16 +6,19 @@ import type { ImageAnnotation } from "../../lib/types";
  *
  * Two flavours, one component:
  *
- * - `capture` — a rectangle cut out of the screenshot itself. Costs nothing to
- *   store because it only references pixels we already have, and it survives a
- *   reload. The original stays untouched underneath; this is a copy you can move.
+ * - `capture` — a rectangle cut out of a screenshot, identified by capture id.
+ *   Costs nothing to store because it is only coordinates, and it survives a
+ *   reload. Usually the open capture; when it points at another one, the parent
+ *   loads that image and passes it as `sourceImage`.
  * - `external` — pasted from the clipboard or another capture. Its pixels live in
  *   memory for this session only.
  */
 interface Props {
   annotation: ImageAnnotation;
-  /** The screenshot, used as the pixel source for `capture` cut-outs. */
+  /** The open screenshot, used for cut-outs taken from this capture. */
   captureImage: HTMLImageElement;
+  /** The *other* capture's image, when this piece was cut from a different one. */
+  sourceImage?: HTMLImageElement;
   /** Resolved pixels for `external` pastes, if still in memory. */
   externalImage?: CanvasImageSource;
   draggable: boolean;
@@ -25,12 +28,16 @@ interface Props {
 export default function ImageObject({
   annotation,
   captureImage,
+  sourceImage,
   externalImage,
   draggable,
   onChange,
 }: Props) {
   const { x, y, width, height, source } = annotation;
-  const image = source.kind === "capture" ? captureImage : externalImage;
+  // A cut-out from another capture must draw that capture's pixels, not the
+  // ones underneath it here.
+  const image =
+    source.kind === "capture" ? (sourceImage ?? captureImage) : externalImage;
 
   // A pasted image whose session ended leaves nothing to draw. Render nothing
   // rather than letting Konva throw on an undefined source.

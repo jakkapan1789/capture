@@ -47,6 +47,37 @@ export async function readClipboardImage(): Promise<PastedImage | null> {
 }
 
 /**
+ * Decode a blob into an image element.
+ *
+ * `onload` is the guarantee that the bitmap is usable. `decode()` on top is an
+ * optimisation - it forces decoding now rather than during the first paint -
+ * raced against a short timeout, because it is not worth hanging on a nicety if
+ * it ever fails to settle.
+ */
+export async function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(blob);
+  const image = new Image();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("could not decode the image"));
+      image.src = url;
+    });
+
+    await Promise.race([
+      image.decode().catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 200)),
+    ]);
+
+    return image;
+  } finally {
+    // Konva keeps its own reference to the element, so the URL can go now.
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
  * Place a pasted image sensibly.
  *
  * Scaled down to fit with a margin, never scaled up past its natural size. With

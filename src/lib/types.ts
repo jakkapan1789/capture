@@ -130,7 +130,21 @@ export interface CropAnnotation {
  * only in memory for the session and are flattened at export; see
  * `persistableAnnotations`.
  */
-export type ImageSource = { kind: "capture"; crop: Rect } | { kind: "external" };
+export type ImageSource =
+  | {
+      kind: "capture";
+      /**
+       * Which capture the pixels belong to.
+       *
+       * Without this a cut-out means "this rectangle of whatever is open",
+       * so copying one into a different capture silently re-cut the new
+       * picture at the same coordinates. Optional only for annotations saved
+       * before it existed, where the owning capture is the right answer.
+       */
+      captureId?: string;
+      crop: Rect;
+    }
+  | { kind: "external" };
 
 /**
  * A solid rectangle. Used as the white hole a Cut leaves behind.

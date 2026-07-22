@@ -28,6 +28,7 @@ import {
   readCaptureImage,
   type CaptureMeta,
 } from "./lib/ipc";
+import { loadImageFromBlob } from "./lib/images";
 import type { Annotation } from "./lib/types";
 import RegionOverlay from "./overlay/RegionOverlay";
 import SettingsDialog from "./settings/SettingsDialog";
@@ -52,35 +53,6 @@ interface OpenCapture {
   meta: CaptureMeta;
   image: HTMLImageElement;
   annotations: Annotation[];
-}
-
-async function loadImage(blob: Blob): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(blob);
-  const image = new Image();
-
-  try {
-    // `onload` is the guarantee that the bitmap is usable.
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("could not decode the capture PNG"));
-      image.src = url;
-    });
-
-    // `decode()` on top of that is an optimisation: it forces the decode to
-    // happen now rather than on the first paint, where it shows up as a hitch
-    // exactly when the new capture appears. It is raced against a short timeout
-    // because it is not worth blocking on - if it ever fails to settle, opening
-    // a capture must not hang forever on a nicety.
-    await Promise.race([
-      image.decode().catch(() => undefined),
-      new Promise((resolve) => setTimeout(resolve, 200)),
-    ]);
-
-    return image;
-  } finally {
-    // Konva keeps its own reference to the element, so the URL can go now.
-    URL.revokeObjectURL(url);
-  }
 }
 
 function CaptureApp() {
@@ -117,7 +89,7 @@ function CaptureApp() {
       setPendingId(id);
       try {
         const [item, blob] = await Promise.all([loadGalleryItem(id), readCaptureImage(id)]);
-        const image = await loadImage(blob);
+        const image = await loadImageFromBlob(blob);
         setOpen({ meta: item.meta, image, annotations: item.annotations ?? [] });
       } catch (error) {
         console.error("could not open capture", error);

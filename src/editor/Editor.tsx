@@ -27,10 +27,15 @@ import {
 } from "react-konva";
 
 import { CopyIcon, DownloadIcon, ImageIcon, PasteIcon, TrashIcon } from "../lib/icons";
-import { placeInViewport, readClipboardImage, type PastedImage } from "../lib/images";
+import {
+  loadImageFromBlob,
+  placeInViewport,
+  readClipboardImage,
+  type PastedImage,
+} from "../lib/images";
 import type { ObjectClipboard } from "../App";
 import ContextMenu from "../components/ContextMenu";
-import { saveAnnotations, type CaptureMeta } from "../lib/ipc";
+import { readCaptureImage, saveAnnotations, type CaptureMeta } from "../lib/ipc";
 import {
   ACCENT,
   colorOf,
@@ -171,6 +176,18 @@ export default function Editor({
   const [externalImages, setExternalImages] = useState<Map<string, CanvasImageSource>>(
     () => new Map(),
   );
+
+  /**
+   * Images of other captures, for cut-outs pasted in from them.
+   *
+   * A `capture` source is only coordinates, so a piece taken from another
+   * screenshot needs that screenshot loaded to draw itself. Cached by capture id
+   * and shared by every annotation pointing at it.
+   */
+  const [sourceImages, setSourceImages] = useState<Map<string, HTMLImageElement>>(
+    () => new Map(),
+  );
+  const loadingSources = useRef(new Set<string>());
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -343,6 +360,42 @@ export default function Editor({
     [addPastedImage, onNotify],
   );
 
+  // Fetch any foreign capture a cut-out points at, once each.
+  useEffect(() => {
+    const wanted = new Set<string>();
+    for (const annotation of annotations) {
+      if (annotation.type !== "image" || annotation.source.kind !== "capture") continue;
+      const id = annotation.source.captureId;
+      if (id && id !== meta.id && !sourceImages.has(id) && !loadingSources.current.has(id)) {
+        wanted.add(id);
+      }
+    }
+    if (wanted.size === 0) return;
+
+    for (const id of wanted) loadingSources.current.add(id);
+    let cancelled = false;
+
+    void (async () => {
+      for (const id of wanted) {
+        try {
+          const image = await loadImageFromBlob(await readCaptureImage(id));
+          if (cancelled) return;
+          setSourceImages((previous) => new Map(previous).set(id, image));
+        } catch (error) {
+          // The source capture may since have been deleted; the piece simply
+          // will not draw, which ImageObject already handles.
+          console.error("could not load source capture", id, error);
+        } finally {
+          loadingSources.current.delete(id);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [annotations, meta.id, sourceImages]);
+
   /* ---------- object clipboard ---------- */
 
 
@@ -361,10 +414,21 @@ export default function Editor({
         if (pixels) images.set(item.id, pixels);
       }
 
-      onClipboardChange({ annotations: items.map((item) => structuredClone(item)), images });
+      // Stamp the origin on anything saved before `captureId` existed. Without
+      // it the copy would mean "this rectangle of whatever is open" once pasted
+      // somewhere else.
+      const copies = items.map((item) => {
+        const copy = structuredClone(item);
+        if (copy.type === "image" && copy.source.kind === "capture" && !copy.source.captureId) {
+          copy.source.captureId = meta.id;
+        }
+        return copy;
+      });
+
+      onClipboardChange({ annotations: copies, images });
       onNotify(items.length > 1 ? `Copied ${items.length} objects` : "Copied");
     },
-    [annotations, externalImages, onClipboardChange, onNotify],
+    [annotations, externalImages, meta.id, onClipboardChange, onNotify],
   );
 
   /**
@@ -664,7 +728,12 @@ export default function Editor({
         replaceAll([
           ...annotations,
           { id: holeId, type: "fill", ...bounds, fill: "#ffffff" },
-          { id: pieceId, type: "image", ...bounds, source: { kind: "capture", crop: bounds } },
+          {
+            id: pieceId,
+            type: "image",
+            ...bounds,
+            source: { kind: "capture", captureId: meta.id, crop: bounds },
+          },
         ]);
         setSelectedIds([pieceId]);
         setTool("select");
@@ -1096,6 +1165,13 @@ export default function Editor({
                         key={annotation.id}
                         annotation={annotation}
                         captureImage={image}
+                        sourceImage={
+                          annotation.source.kind === "capture" &&
+                          annotation.source.captureId &&
+                          annotation.source.captureId !== meta.id
+                            ? sourceImages.get(annotation.source.captureId)
+                            : undefined
+                        }
                         externalImage={externalImages.get(annotation.id)}
                         draggable={draggableNow}
                         onChange={(patch) => update(annotation.id, patch)}

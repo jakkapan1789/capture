@@ -96,8 +96,14 @@ Two kinds of image object, one component (`ImageObject`):
 
 | Source | Pixels | Survives reload |
 | --- | --- | --- |
-| `capture` (Cut tool) | a rectangle into the screenshot we already have | yes — it's just coordinates |
+| `capture` (Cut tool) | a rectangle into a screenshot, by capture id | yes — it's just coordinates |
 | `external` (clipboard paste, Cmd+V) | in memory for this session | no — flattened at export |
+
+A `capture` source carries the **id of the capture it came from**, not just a
+rectangle. Without it a cut-out means "this rectangle of whatever is open", so
+copying one into a different capture silently re-cut the new picture at the same
+coordinates. When a piece points at another capture, the editor loads that
+image and hands it to `ImageObject`.
 
 `persistableAnnotations()` drops `external` images before every write. Persisting
 them would rehydrate as blank objects, since the JSON has no pixels to point at.
