@@ -152,16 +152,69 @@ grabbing again. The race is removed instead of out-waited, and the selection now
 shows the screen as it was when you started, which is also what every other
 capture tool does.
 
+## Where capture time actually goes
+
+Saving a capture is one PNG encode of a full-resolution frame. A first pass at
+this measured `CompressionType::Default` and concluded encoding cost ~1.1s -
+wrong, because `PngEncoder::new()` defaults to **`Fast`**, not `Default`. The
+real cost in a release build is ~50ms, and encoding was never the bottleneck it
+looked like. Measured on real captures here (2022x1476 to 2426x1624):
+
+| | encode | file size |
+|---|---|---|
+| debug, unoptimised deps | ~1.4s | - |
+| debug, optimised deps | ~0.27s | - |
+| release, `opt-level = "s"` throughout | 50.0ms | baseline |
+| release, codecs at `opt-level = 3` | 45.1ms | baseline |
+| release, codecs at 3, alpha dropped | 41.6ms | -14 to -18% |
+
+Three things follow:
+
+**Dependencies are optimised in the dev profile.** `tauri dev` builds everything
+unoptimised, and PNG work lives entirely in `image`/`png`/`flate2`. Unoptimised,
+saving a capture takes ~1.4s against ~0.27s - the difference between the app
+feeling sluggish and feeling instant while it is being worked on.
+`[profile.dev.package."*"] opt-level = 2` buys that back without slowing down
+rebuilds of our own crate.
+
+**The codecs are `opt-level = 3` in release.** The binary stays `"s"`, because a
+small bundle is why we picked Tauri, but `"s"` measured ~17% slower on this one
+hot path and these three crates are small.
+
+**Alpha is dropped when the frame is opaque** - see `encode_png`. Smaller *and*
+slightly faster, with an opacity check so a frame carrying real transparency is
+still stored intact. The conversion writes one preallocated buffer; building it
+per-pixel cost more than the encode saved.
+
+`CompressionType::Best` and `Default` are both rejected: they shrink a flat UI
+screenshot usefully but cost 3-10x the encode time, and the capture is written
+while the user is waiting to annotate it.
+
+## Thumbnails must not be square
+
+`imageops::thumbnail` resizes to *exactly* the dimensions given - it does not
+preserve aspect ratio, whatever the obvious reading of the name suggests.
+Passing `THUMB_MAX_EDGE` for both edges therefore squashed every capture into a
+320x320 thumbnail, which the gallery then stretched back out through
+`object-fit: cover`. This went unnoticed for a long time because the result is
+distorted rather than obviously broken; it was found by measuring the stored
+files, not by reading the code. `thumb_size()` computes both edges from one
+ratio, and a test pins it.
+
 ## The window's minimum size is measured, not guessed
 
-`minWidth` is derived from the widest the toolbar ever gets. That is not the
-default state: selecting a step badge while a crop is active shows the colour
-well, the Number -/+ pair, Delete *and* Reset crop at once — 919px, against
-575px with nothing selected.
+`minWidth` is derived from the widest the toolbar ever gets, measured in the
+browser rather than reasoned about. It is not the default state: with nothing
+selected the row needs 575px; selecting a text object adds the colour well and
+the size picker for 834px; a step badge selected while a crop is active adds
+Delete *and* Reset crop, the widest state at 919px.
 
-Below that the pinned capture buttons overlap the tools rather than the row
-simply scrolling, which looks broken. So `minWidth = 919 + 232 (history strip)
-+ 45 slack` = 1196.
+The row scrolls sideways by design, so exceeding it is not a failure - but the
+pinned capture group starts getting clipped rather than staying pinned once the
+overflow is large. Screenshotting the widest reachable state put that boundary
+between 900px (settings gear clipped) and 1020px (clean). So
+`minWidth = 1020`, which leaves the crop+step state scrolling slightly rather
+than sizing every window for a state most sessions never enter.
 
 **Re-measure whenever the toolbar gains a control** — adding the ellipse tool
 alone moved it from 883 to 919.

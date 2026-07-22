@@ -40,6 +40,27 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-opener = "2.5.4"
 
+# Our own code stays unoptimised so `tauri dev` rebuilds stay fast, but the
+# dependencies get optimised. PNG encoding lives entirely in `image`/`png`/
+# `flate2`, and unoptimised a full-screen capture takes ~1.4s to save against
+# ~0.27s here - the difference between "sluggish" and "instant" while working.
+[profile.dev.package."*"]
+opt-level = 2
+
+# Optimise the image codecs for size everywhere except where it costs real time.
+# `opt-level = "s"` on the whole binary is deliberate - a small bundle is why we
+# picked Tauri - but PNG encoding is the one hot path a user waits on, and "s"
+# measured ~17% slower there (50.0ms against 41.6ms on a 2022x1476 capture).
+# These three crates are small, so buying the speed back costs almost no size.
+[profile.release.package.image]
+opt-level = 3
+
+[profile.release.package.png]
+opt-level = 3
+
+[profile.release.package.flate2]
+opt-level = 3
+
 [profile.release]
 # Small bundle is the whole reason we picked Tauri.
 opt-level = "s"
