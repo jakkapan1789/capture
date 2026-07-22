@@ -146,6 +146,17 @@ grabbing again. The race is removed instead of out-waited, and the selection now
 shows the screen as it was when you started, which is also what every other
 capture tool does.
 
+## The window's minimum size is measured, not guessed
+
+`minWidth` is derived from the widest the toolbar ever gets. That is not the
+default state: selecting a step badge while a crop is active shows the colour
+well, the Number -/+ pair, Delete *and* Reset crop at once — 883px, against
+539px with nothing selected.
+
+Below that the pinned capture buttons overlap the tools rather than the row
+simply scrolling, which looks broken. So `minWidth = 883 + 232 (history strip)
++ 45 slack`. Re-measure it if the toolbar gains controls.
+
 ## Storage is named after the product, not the identifier
 
 Tauri's `app_data_dir()` is `<data dir>/<bundle identifier>`, which put the
