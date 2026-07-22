@@ -72,6 +72,15 @@ export interface TextAnnotation extends BaseAnnotation {
   type: "text";
   text: string;
   /**
+   * Width of the text box, in image pixels, when one was dragged out.
+   *
+   * Paint's model: drag a box and the text wraps inside it. Absent when the tool
+   * was simply clicked, which places a label that grows with what is typed - the
+   * common case for a short caption, and the one Paint makes you size by hand.
+   * Absent on anything saved before boxes existed, which is the same behaviour.
+   */
+  boxWidth?: number;
+  /**
    * Size in **logical** pixels, i.e. the number the user picked.
    *
    * Unlike every other measurement in this file, this is not in image pixels.

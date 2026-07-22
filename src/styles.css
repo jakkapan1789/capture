@@ -1040,17 +1040,17 @@ button {
   font-weight: 700;
   resize: none;
   overflow: hidden;
-  white-space: pre;
   user-select: text;
 
-  /* The edit boundary is a ring set slightly away from the glyphs, rather than
-     a border tight against them: it marks the region without crowding the text
-     or covering any of the picture. The dark halo keeps it visible on a light
-     screenshot, where a thin red line alone would disappear. */
-  outline: 1.5px solid var(--accent);
+  /* Paint's marching-ants box: a thin dashed rectangle marking the editable
+     region, set slightly off the glyphs so it neither crowds the text nor
+     covers the picture. Dashes rather than a solid line because they read as
+     "this is a boundary, not part of the image" - the same reason the marquee
+     and the crop box use them. The dark halo keeps it visible on a light
+     screenshot, where a thin light line alone would disappear. */
+  outline: 1px dashed var(--accent);
   outline-offset: 3px;
-  border-radius: 1px;
-  box-shadow: 0 0 0 4.5px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.18);
 }
 
 .text-editor::selection {

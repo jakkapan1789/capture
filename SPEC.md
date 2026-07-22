@@ -242,6 +242,16 @@ sizing, so left alone it draws a fixed rectangle whatever is in it; collapsing i
 to zero first is what makes `scrollWidth`/`scrollHeight` report the content, so
 it shrinks as well as grows.
 
+Text follows Paint: **drag a box and the words wrap inside it**, marked while
+editing by a thin dashed rectangle. The width is stored as `boxWidth` and given
+to both the textarea and Konva's `Text`, so the wrap points do not move when the
+text is committed - the test drags a 180px box and checks the committed node is
+180x60, the same as the box that was typed into.
+
+Clicking without dragging places a label that grows with what is typed instead.
+Paint makes you size a box either way; for a two-word caption on a screenshot
+that is work for nothing, and the two modes cost one optional field.
+
 It also draws **on** the picture rather than over it. The old version painted a
 55%-black slab behind the text, which hid the very thing the text is being
 positioned against, and put a red placeholder on grey. Now the annotation appears

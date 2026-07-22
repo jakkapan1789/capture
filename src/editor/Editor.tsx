@@ -1075,14 +1075,18 @@ export default function Editor({
       }
       case "text": {
         const id = createId();
+        // Dragging a box makes the text wrap inside it, the way Paint does.
+        // Clicking just places a label that grows with what is typed.
+        const dragged = bounds.width >= MIN_DRAW && bounds.height >= MIN_DRAW;
         add({
           id,
           type: "text",
-          x: startX,
-          y: startY,
+          x: dragged ? bounds.x : startX,
+          y: dragged ? bounds.y : startY,
           text: "Text",
           fontSize: style.fontSize,
           fill: style.color,
+          ...(dragged ? { boxWidth: bounds.width } : {}),
         });
         setEditingId(id);
         setTool("select");
@@ -1201,10 +1205,15 @@ export default function Editor({
    * `scrollWidth`/`scrollHeight` report the content rather than the box that was
    * already there, so it shrinks as well as grows.
    */
-  const fitTextEditor = (node: HTMLTextAreaElement) => {
-    node.style.width = "0px";
-    // A little slack, or the caret sits on the boundary and scrolls the box.
-    node.style.width = `${node.scrollWidth + 2}px`;
+  const fitTextEditor = (node: HTMLTextAreaElement, boxWidth?: number) => {
+    // A dragged box keeps the width it was given and only grows downwards, so
+    // the wrap points stay where the user put them. A clicked one tracks its
+    // content in both directions.
+    if (boxWidth === undefined) {
+      node.style.width = "0px";
+      // A little slack, or the caret sits on the boundary and scrolls the box.
+      node.style.width = `${node.scrollWidth + 2}px`;
+    }
     node.style.height = "0px";
     node.style.height = `${node.scrollHeight}px`;
   };
@@ -1439,6 +1448,10 @@ export default function Editor({
                         fontSize={annotation.fontSize * unit}
                         fontFamily={ANNOTATION_FONT}
                         lineHeight={ANNOTATION_LINE_HEIGHT}
+                        // Only set when a box was dragged; leaving it undefined
+                        // lets Konva size to the text, which is the click case.
+                        width={annotation.boxWidth}
+                        wrap="word"
                         fontStyle="bold"
                         fill={annotation.fill}
                         draggable={draggableNow}
@@ -1646,7 +1659,7 @@ export default function Editor({
                 />
               )}
 
-              {draft && ["rect", "blur", "crop", "cut", "ocr"].includes(draft.tool) && (
+              {draft && ["rect", "blur", "crop", "cut", "ocr", "text"].includes(draft.tool) && (
                 <Rect
                   {...draftBounds(draft)}
                   stroke={ACCENT}
@@ -1678,15 +1691,19 @@ export default function Editor({
               className="text-editor"
               autoFocus
               defaultValue={editing.text}
-              // No wrapping: the box grows with what is typed instead of
-              // choosing a width for you, which is what made a short word sit in
-              // a wide grey slab.
-              wrap="off"
+              // A dragged box wraps inside itself; a clicked one grows sideways
+              // rather than choosing a width for you.
+              wrap={editing.boxWidth === undefined ? "off" : "soft"}
               spellCheck={false}
               style={{
                 left: (editing.x - viewport.x) * fitScale,
                 top: (editing.y - viewport.y) * fitScale,
                 fontSize: editing.fontSize * unit * fitScale,
+                width:
+                  editing.boxWidth === undefined
+                    ? undefined
+                    : editing.boxWidth * fitScale,
+                whiteSpace: editing.boxWidth === undefined ? "pre" : "pre-wrap",
                 fontFamily: ANNOTATION_FONT,
                 lineHeight: ANNOTATION_LINE_HEIGHT,
                 color: editing.fill,
@@ -1694,12 +1711,12 @@ export default function Editor({
               }}
               ref={(node) => {
                 if (!node) return;
-                fitTextEditor(node);
+                fitTextEditor(node, editing.boxWidth);
                 // Placed text starts as the word "Text"; selecting it means the
                 // first keystroke replaces it rather than appending to it.
                 node.select();
               }}
-              onInput={(event) => fitTextEditor(event.currentTarget)}
+              onInput={(event) => fitTextEditor(event.currentTarget, editing.boxWidth)}
               onBlur={(event) => {
                 const text = event.target.value.trim();
                 // Emptying the box cancels: falling back to the placeholder left
