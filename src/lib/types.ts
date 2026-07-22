@@ -159,6 +159,23 @@ export type ImageSource =
       kind: "piece";
       captureId: string;
       pieceId: string;
+      /**
+       * Where the cut was taken from.
+       *
+       * A piece starts exactly over its source, so until it is dragged it is
+       * showing the picture back to itself. Knowing the origin is what lets it
+       * be drawn flat until then - a drop shadow around something that has not
+       * been lifted just looks like a smudge - and lets an untouched cut be
+       * abandoned rather than left as a no-op.
+       */
+      origin: { x: number; y: number };
+      /**
+       * The white rectangle left behind, so the pair can be abandoned together.
+       *
+       * Absent on a copy pasted elsewhere: that copy did not cut anything where
+       * it landed, so there is no hole of its own to withdraw.
+       */
+      holeId?: string;
     }
   | { kind: "external" };
 
@@ -274,6 +291,13 @@ export function livePieceIds(annotations: Annotation[]): string[] {
  */
 export function persistableAnnotations(annotations: Annotation[]): Annotation[] {
   return annotations.filter((annotation) => !isSessionOnly(annotation));
+}
+
+/** True when a cut-out is still sitting exactly where it was cut from. */
+export function isUnmovedPiece(annotation: Annotation): boolean {
+  if (annotation.type !== "image" || annotation.source.kind !== "piece") return false;
+  const { origin } = annotation.source;
+  return annotation.x === origin.x && annotation.y === origin.y;
 }
 
 export function findCrop(annotations: Annotation[]): CropAnnotation | undefined {

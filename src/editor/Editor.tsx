@@ -54,6 +54,7 @@ import {
   DEFAULT_FONT_SIZE,
   findCrop,
   isSelectable,
+  isUnmovedPiece,
   persistableAnnotations,
   rectsIntersect,
   stepNumbers,
@@ -599,7 +600,10 @@ export default function Editor({
           const pixels = clipboard.images.get(item.id);
           if (pixels) {
             const pieceId = createId();
-            copy.source = { kind: "piece", captureId: meta.id, pieceId };
+            // Keep the original origin so the copy still reads as lifted, and
+            // carry no hole: nothing was cut where this one has landed.
+            const { origin } = copy.source;
+            copy.source = { kind: "piece", captureId: meta.id, pieceId, origin };
             newPieces.set(pieceId, { pixels, width: copy.width, height: copy.height });
           }
           // Without pixels the original reference is kept: it still draws for as
@@ -645,6 +649,72 @@ export default function Editor({
       void pasteFromClipboard(at);
     },
     [pasteObjects, pasteFromClipboard],
+  );
+
+  /**
+   * Withdraw a cut that was made and then left alone.
+   *
+   * A piece still sitting on its own hole is showing the picture back to itself:
+   * the capture looks untouched, but it now carries two objects that cancel each
+   * other out, and a stray drag later would tear a white rectangle into it. So
+   * clicking away from an untouched cut takes both back out.
+   *
+   * Only ever the piece the click is leaving, and only while it is exactly where
+   * it was cut - a piece that has been moved by even a pixel is deliberate work
+   * and is left alone. One mutation, so undo restores the pair together.
+   */
+  const abandonUnmovedCut = useCallback(() => {
+    const stale = annotations.filter(
+      (annotation) => selectedIds.includes(annotation.id) && isUnmovedPiece(annotation),
+    );
+    if (stale.length === 0) return;
+
+    const doomed = new Set<string>();
+    for (const piece of stale) {
+      doomed.add(piece.id);
+      if (piece.type === "image" && piece.source.kind === "piece" && piece.source.holeId) {
+        doomed.add(piece.source.holeId);
+      }
+    }
+    replaceAll(annotations.filter((annotation) => !doomed.has(annotation.id)));
+  }, [annotations, selectedIds, replaceAll]);
+
+  /**
+   * Move every selected object by the same offset.
+   *
+   * One mutation rather than one per object, so a key press is a single undo
+   * step however many things are selected - and so a held key does not bury the
+   * previous state under a hundred of them.
+   */
+  const nudge = useCallback(
+    (dx: number, dy: number) => {
+      const moving = new Set(selectedIds);
+      replaceAll(
+        annotations.map((annotation) =>
+          moving.has(annotation.id) && isSelectable(annotation)
+            ? { ...annotation, x: annotation.x + dx, y: annotation.y + dy }
+            : annotation,
+        ),
+      );
+    },
+    [annotations, selectedIds, replaceAll],
+  );
+
+  /**
+   * Switch tools the way a person does, which always means dropping the
+   * selection.
+   *
+   * Picking up the arrow tool while a box is still selected left its transform
+   * handles on screen over a tool that cannot use them. Internal `setTool` calls
+   * stay as they are: finishing a cut deliberately selects what it just made.
+   */
+  const selectTool = useCallback(
+    (next: Tool) => {
+      abandonUnmovedCut();
+      setTool(next);
+      setSelectedIds([]);
+    },
+    [abandonUnmovedCut, setSelectedIds],
   );
 
   /* ---------- keyboard ---------- */
@@ -693,6 +763,7 @@ export default function Editor({
           setMenu(null);
           return;
         }
+        abandonUnmovedCut();
         setSelectedIds([]);
         setTool("select");
         return;
@@ -704,8 +775,26 @@ export default function Editor({
         return;
       }
 
+      // Arrow keys nudge the selection. Held down they repeat, which is the
+      // point: it is how you line something up by eye without fighting the
+      // mouse. Shift covers distance.
+      const NUDGE: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      const direction = NUDGE[event.key];
+      if (direction && selectedIds.length > 0 && !event.metaKey && !event.ctrlKey) {
+        // Otherwise the whole page scrolls under the picture.
+        event.preventDefault();
+        const step = (event.shiftKey ? 10 : 1) * unit;
+        nudge(direction[0] * step, direction[1] * step);
+        return;
+      }
+
       const shortcut = SHORTCUTS[event.key.toLowerCase()];
-      if (shortcut && !event.metaKey && !event.ctrlKey) setTool(shortcut);
+      if (shortcut && !event.metaKey && !event.ctrlKey) selectTool(shortcut);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -721,6 +810,10 @@ export default function Editor({
     copySelection,
     undo,
     redo,
+    nudge,
+    selectTool,
+    abandonUnmovedCut,
+    unit,
   ]);
 
   /* ---------- pointer ---------- */
@@ -782,7 +875,10 @@ export default function Editor({
     }
 
     // Empty space: start a marquee. Shift keeps whatever is already selected.
-    if (!event.evt.shiftKey) setSelectedIds([]);
+    if (!event.evt.shiftKey) {
+      abandonUnmovedCut();
+      setSelectedIds([]);
+    }
     setDraft({ tool: "marquee", startX: position.x, startY: position.y, ...position });
   };
 
@@ -912,7 +1008,13 @@ export default function Editor({
             id: pieceId,
             type: "image",
             ...bounds,
-            source: { kind: "piece", captureId: meta.id, pieceId },
+            source: {
+              kind: "piece",
+              captureId: meta.id,
+              pieceId,
+              origin: { x: bounds.x, y: bounds.y },
+              holeId,
+            },
           },
         ]);
         setSelectedIds([pieceId]);
@@ -1196,7 +1298,7 @@ export default function Editor({
     <div className="editor">
       <Toolbar
         tool={tool}
-        onToolChange={setTool}
+        onToolChange={selectTool}
         disabledTools={canReadText ? undefined : ["ocr"]}
         selected={single}
         hasCrop={Boolean(crop)}
