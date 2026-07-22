@@ -9,6 +9,7 @@ import {
   type SettingsView,
 } from "../lib/ipc";
 import Toggle from "../components/Toggle";
+import { InfoIcon } from "../lib/icons";
 
 interface Props {
   onClose: () => void;
@@ -312,7 +313,8 @@ export default function SettingsDialog({ onClose, onShowAbout, onSettingsChange 
 
         <footer className="modal-footer">
           {/* Left-aligned: About is not an action on these settings. */}
-          <button type="button" className="link-btn footer-link" onClick={onShowAbout}>
+          <button type="button" className="btn btn-quiet" onClick={onShowAbout}>
+            <InfoIcon size={15} />
             About Capture
           </button>
           <div className="modal-footer-spacer" />

@@ -365,6 +365,13 @@ next one is a field in three places rather than a new command. The hotkey keeps
 its own command because setting it can fail and has to be rolled back, which is
 a different shape of operation.
 
+About is reachable two ways and behaves differently in each. Opened from
+Settings it offers **Back**, which returns to Settings; opened from the
+application menu there is nothing behind it, so it offers Close instead - a Back
+button there would open a dialog the user never opened. Escape follows whichever
+of the two is showing, so it never skips a step. `App` remembers which route was
+taken; the dialog just renders what it is given.
+
 `auto_copy_to_clipboard` defaults to **off**. The clipboard is shared with
 everything else the user is doing, and silently replacing its contents is not
 something to opt someone into.

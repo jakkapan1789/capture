@@ -632,6 +632,20 @@ button {
   border-top: 1px solid var(--line);
 }
 
+/* Secondary: no filled background, so it sits below the primary action in the
+   same row without needing to be a different size. */
+.btn-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.btn-quiet:hover {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: inherit;
+}
+
 .modal-footer .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1113,13 +1127,23 @@ button {
   font-size: 11px;
 }
 
+/* Stacked, not side by side: at the strip's width the date and the dimensions
+   no longer fit on one line, and flex wrapping broke them mid-value ("Jul 22,
+   12:25" / "PM"). Two clean lines read better than one ragged one. */
 .gallery-meta {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 1px;
   margin-top: 6px;
   font-size: 11px;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.gallery-meta > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gallery-meta strong {
@@ -1376,27 +1400,8 @@ button {
   white-space: nowrap;
 }
 
-.about-footer {
-  align-items: center;
-  justify-content: space-between;
-}
-
-.about-copyright {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.about-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .modal-footer-spacer {
   flex: 1;
-}
-
-.footer-link {
-  align-self: center;
 }
 
 @media (prefers-reduced-motion: reduce) {

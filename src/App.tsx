@@ -72,7 +72,14 @@ function CaptureApp() {
   const [status, setStatus] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cleanUpOpen, setCleanUpOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
+  /**
+   * Whether About is open, and whether Settings is waiting behind it.
+   *
+   * Reached from Settings it should hand back to Settings; reached from the
+   * application menu there is nothing behind it, and the dialog offers Close
+   * instead of a Back button that would open something the user never opened.
+   */
+  const [about, setAbout] = useState<null | "standalone" | "from-settings">(null);
   const [permissionOpen, setPermissionOpen] = useState(false);
   const [clipboard, setClipboard] = useState<ObjectClipboard>({
     annotations: [],
@@ -181,7 +188,7 @@ function CaptureApp() {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen(MENU_ABOUT, () => setAboutOpen(true));
+    const unlisten = listen(MENU_ABOUT, () => setAbout("standalone"));
     return () => {
       void unlisten.then((off) => off());
     };
@@ -390,12 +397,24 @@ function CaptureApp() {
           onSettingsChange={setSettings}
           onShowAbout={() => {
             setSettingsOpen(false);
-            setAboutOpen(true);
+            setAbout("from-settings");
           }}
         />
       )}
 
-      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {about && (
+        <AboutDialog
+          onClose={() => setAbout(null)}
+          onBack={
+            about === "from-settings"
+              ? () => {
+                  setAbout(null);
+                  setSettingsOpen(true);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {permissionOpen && <PermissionDialog onClose={() => setPermissionOpen(false)} />}
 

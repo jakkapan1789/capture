@@ -1,13 +1,12 @@
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 
-import { CropIcon } from "../lib/icons";
+import { BackIcon, CropIcon } from "../lib/icons";
 import { appInfo, type AppInfo } from "../lib/ipc";
 
 const AUTHOR = "Jakkapan Pakeerat";
 const SUPPORT_EMAIL = "support@siconsoft.com";
 const TAGLINE = "Screen capture with annotations you can always re-edit.";
-const COPYRIGHT_YEAR = new Date().getFullYear();
 
 /**
  * Third-party notices.
@@ -33,9 +32,17 @@ const OS_NAMES: Record<string, string> = {
 
 interface Props {
   onClose: () => void;
+  /**
+   * Return to whatever opened this, when there is something to return to.
+   *
+   * Present when About was reached from Settings, absent when it came from the
+   * application menu - there is no settings dialog behind it then, and a Back
+   * button that dumped you somewhere you had not been would be a lie.
+   */
+  onBack?: () => void;
 }
 
-export default function AboutDialog({ onClose }: Props) {
+export default function AboutDialog({ onClose, onBack }: Props) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [notices, setNotices] = useState(false);
 
@@ -45,11 +52,13 @@ export default function AboutDialog({ onClose }: Props) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      // Escape follows the same path as the footer button, so it never skips
+      // a step the user would expect to land on.
+      if (event.key === "Escape") (onBack ?? onClose)();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, onBack]);
 
   const platform = info
     ? `${OS_NAMES[info.os] ?? info.os} ${info.arch} · Tauri ${info.tauriVersion}`
@@ -140,10 +149,19 @@ export default function AboutDialog({ onClose }: Props) {
           )}
         </div>
 
-        <footer className="modal-footer about-footer">
-          <span className="about-copyright">
-            © {COPYRIGHT_YEAR} {AUTHOR}
-          </span>
+        {/* One right-aligned action. The author is credited in "Made by" above,
+            so the copyright line that used to sit here was saying it twice. */}
+        <footer className="modal-footer">
+          {onBack ? (
+            <button type="button" className="btn" onClick={onBack}>
+              <BackIcon size={15} />
+              Back
+            </button>
+          ) : (
+            <button type="button" className="btn" onClick={onClose}>
+              Close
+            </button>
+          )}
         </footer>
       </div>
     </div>

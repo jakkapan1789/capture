@@ -233,6 +233,20 @@ export const CropIcon = (props: { size?: number }) => (
   </Svg>
 );
 
+export const InfoIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11 V16.5" />
+    <path d="M12 7.6 V8.2" />
+  </Svg>
+);
+
+export const BackIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <path d="M15 5 L8 12 L15 19" />
+  </Svg>
+);
+
 export const GearIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <circle cx="12" cy="12" r="3.2" />
