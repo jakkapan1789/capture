@@ -133,6 +133,27 @@ cleared via `queueMicrotask` collapses a gesture into exactly one undo step. A
 transform that returns the same array (a rejected step reorder, a no-op edit) is
 detected by identity and does not consume a step at all.
 
+## The region is cut from a frame taken *before* the overlay appears
+
+The selection overlay dims the screen. Grabbing the screen after hiding it and
+waiting a fixed delay bakes that dimming into the screenshot whenever the
+compositor has not caught up — which is exactly what happened on Windows, where
+it is slower than on macOS.
+
+So `show_region_overlay` grabs the monitor first and parks the frame in
+`AppState::pending_frame`; `capture_region` crops that frame rather than
+grabbing again. The race is removed instead of out-waited, and the selection now
+shows the screen as it was when you started, which is also what every other
+capture tool does.
+
+## Storage is named after the product, not the identifier
+
+Tauri's `app_data_dir()` is `<data dir>/<bundle identifier>`, which put the
+author's name into a path users see in their own file manager. `storage_root()`
+uses `<data dir>/<product name>` instead, and moves an existing library across
+the first time it runs — only ever when the destination is absent, so it can
+never overwrite anything.
+
 ## Window creation must not happen on the main thread
 
 `WebviewWindowBuilder::build()` deadlocks on Windows when called from a

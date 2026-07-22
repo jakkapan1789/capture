@@ -29,6 +29,7 @@ pub fn run() {
         .manage(AppState {
             capture: capture::create_capture(),
             settings: Mutex::new(settings::Settings::default()),
+            pending_frame: Mutex::new(None),
         })
         .setup(|app| {
             let handle = app.handle().clone();

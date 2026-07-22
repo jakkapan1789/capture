@@ -157,47 +157,25 @@ impl ScreenCapture for XcapCapture {
         })
     }
 
+    fn capture_monitor_at(&self, point: (f64, f64)) -> Result<Capture> {
+        let monitor = monitor_at(point)?;
+        let (image, geom, scale_x, _) = capture_full(&monitor)?;
+
+        Ok(Capture {
+            image,
+            scale_factor: scale_x as f32,
+            origin: (geom.x, geom.y),
+        })
+    }
+
     /// Region capture is "grab the whole monitor, then crop".
     ///
     /// `xcap` does expose its own `capture_region`, but its arguments are in logical
     /// points on macOS and physical pixels on Windows. Cropping ourselves keeps one
     /// code path and one set of units on both platforms.
     fn capture_region(&self, region: LogicalRegion) -> Result<Capture> {
-        if region.width <= 0.0 || region.height <= 0.0 {
-            return Err(anyhow!("region must have a positive width and height"));
-        }
-
-        let monitor = monitor_at(region.center())?;
-        let (image, geom, scale_x, scale_y) = capture_full(&monitor)?;
-
-        // Logical offset of the drag within this monitor, then into physical pixels.
-        let left = ((region.x - geom.x) * scale_x).round();
-        let top = ((region.y - geom.y) * scale_y).round();
-        let right = left + (region.width * scale_x).round();
-        let bottom = top + (region.height * scale_y).round();
-
-        // Clamp to the captured bitmap: a drag can start on one monitor and end
-        // past its edge, and `crop_imm` would happily read out of bounds.
-        let left = left.clamp(0.0, image.width() as f64) as u32;
-        let top = top.clamp(0.0, image.height() as f64) as u32;
-        let right = right.clamp(0.0, image.width() as f64) as u32;
-        let bottom = bottom.clamp(0.0, image.height() as f64) as u32;
-
-        let width = right.saturating_sub(left);
-        let height = bottom.saturating_sub(top);
-        if width == 0 || height == 0 {
-            return Err(anyhow!("region is empty after clamping to the monitor"));
-        }
-
-        let cropped = xcap::image::imageops::crop_imm(&image, left, top, width, height).to_image();
-
-        Ok(Capture {
-            image: cropped,
-            scale_factor: scale_x as f32,
-            // Report where the crop actually landed, post-clamp, so the frontend can
-            // line annotations back up with the screen.
-            origin: (geom.x + left as f64 / scale_x, geom.y + top as f64 / scale_y),
-        })
+        let frame = self.capture_monitor_at(region.center())?;
+        super::crop(&frame, region)
     }
 }
 

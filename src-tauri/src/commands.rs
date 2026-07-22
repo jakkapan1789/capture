@@ -25,15 +25,23 @@ const CAPTURE_CREATED: &str = "capture://created";
 /// Emitted when macOS refuses screen capture, so the UI can offer a way out.
 const PERMISSION_DENIED: &str = "capture://permission-denied";
 
-/// How long to wait after hiding the overlay before grabbing the screen.
+/// How long to wait after hiding our own window before a full-screen grab.
 ///
-/// Hiding a window is not synchronous with what the compositor has actually drawn;
-/// without this the overlay's own dimming ends up baked into the screenshot.
-const OVERLAY_SETTLE: Duration = Duration::from_millis(120);
+/// Hiding is not synchronous with what the compositor has drawn. The region
+/// overlay no longer relies on this - it grabs the screen before it appears -
+/// but a full-screen capture still has to get the app's own window out of shot.
+const WINDOW_SETTLE: Duration = Duration::from_millis(120);
 
 pub struct AppState {
     pub capture: Box<dyn ScreenCapture>,
     pub settings: Mutex<Settings>,
+    /// The screen as it looked the moment the selection overlay opened.
+    ///
+    /// The region is cut from this rather than grabbed again on mouse-up, so the
+    /// overlay's own dimming can never end up in the screenshot. Waiting for the
+    /// compositor to finish hiding the overlay is guesswork; this removes the
+    /// race instead of trying to out-wait it.
+    pub pending_frame: Mutex<Option<crate::capture::Capture>>,
 }
 
 /// Settings plus the runtime facts the UI needs to explain itself.
@@ -53,11 +61,47 @@ fn to_string_err<T>(result: anyhow::Result<T>) -> Result<T, String> {
     result.map_err(|e| format!("{e:#}"))
 }
 
+/// Where everything this app owns lives.
+///
+/// Named after the product rather than the bundle identifier: Tauri's
+/// `app_data_dir()` returns a folder named after the identifier, which put the
+/// author's name in a path users see. `<data dir>/Capture` is what someone
+/// browsing their own files would expect to find.
+fn storage_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let name = app
+        .config()
+        .product_name
+        .clone()
+        .unwrap_or_else(|| "Capture".to_string());
+
+    let root = app
+        .path()
+        .data_dir()
+        .map_err(|e| format!("could not resolve the data directory: {e}"))?
+        .join(name);
+
+    // Move an existing library over the first time, rather than appearing to
+    // have lost everything. Only ever when the new location is still absent, so
+    // this can never overwrite anything.
+    if !root.exists() {
+        if let Ok(previous) = app.path().app_data_dir() {
+            if previous.exists() && previous != root {
+                if let Err(error) = std::fs::rename(&previous, &root) {
+                    eprintln!(
+                        "could not move {} to {}: {error}",
+                        previous.display(),
+                        root.display()
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(root)
+}
+
 fn gallery_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join("gallery"))
-        .map_err(|e| format!("could not resolve the app data directory: {e}"))
+    Ok(storage_root(app)?.join("gallery"))
 }
 
 #[tauri::command]
@@ -105,6 +149,20 @@ pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String>
     let position = *monitor.position();
     let size = *monitor.size();
 
+    // Grab the screen *now*, while nothing of ours is covering it.
+    let scale = monitor.scale_factor();
+    let cursor_logical = (cursor.x / scale, cursor.y / scale);
+    let frame = to_string_err(
+        app.state::<AppState>()
+            .capture
+            .capture_monitor_at(cursor_logical),
+    )?;
+    *app.state::<AppState>()
+        .pending_frame
+        .lock()
+        .map_err(|e| e.to_string())? = Some(frame);
+
+
     let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("index.html".into()))
         .title("Select a region")
         .position(position.x as f64, position.y as f64)
@@ -142,9 +200,17 @@ pub async fn open_region_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), St
 }
 
 #[tauri::command]
-pub async fn close_region_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+pub async fn close_region_overlay<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
         overlay.close().map_err(|e| e.to_string())?;
+    }
+    // Drop the frame; keeping it would waste a screen-sized buffer until the
+    // next capture, and it would be stale by then anyway.
+    if let Ok(mut pending) = state.pending_frame.lock() {
+        *pending = None;
     }
     Ok(())
 }
@@ -174,17 +240,23 @@ pub async fn capture_region<R: Runtime>(
         height: region.height,
     };
 
-    let overlay = app.get_webview_window(OVERLAY_LABEL);
-    if let Some(overlay) = &overlay {
-        overlay.hide().map_err(|e| e.to_string())?;
-        tokio::time::sleep(OVERLAY_SETTLE).await;
-    }
-
-    let result = state.capture.capture_region(virtual_region);
-
-    if let Some(overlay) = overlay {
+    if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = overlay.close();
     }
+
+    // Cut from the frame taken before the overlay appeared. Falling back to a
+    // fresh grab keeps things working if the overlay was somehow opened without
+    // one - at the cost of the dimming possibly showing up.
+    let frame = state
+        .pending_frame
+        .lock()
+        .map_err(|e| e.to_string())?
+        .take();
+
+    let result = match frame {
+        Some(frame) => crate::capture::crop(&frame, virtual_region),
+        None => state.capture.capture_region(virtual_region),
+    };
 
     let capture = to_string_err(result)?;
     finish_capture(&app, capture)
@@ -202,7 +274,7 @@ pub async fn capture_monitor<R: Runtime>(
     let main = app.get_webview_window(MAIN_LABEL);
     if let Some(main) = &main {
         main.hide().map_err(|e| e.to_string())?;
-        tokio::time::sleep(OVERLAY_SETTLE).await;
+        tokio::time::sleep(WINDOW_SETTLE).await;
     }
 
     let result = state.capture.capture_monitor(monitor_id);
@@ -366,22 +438,14 @@ pub fn app_info<R: Runtime>(app: AppHandle<R>) -> Result<AppInfo, String> {
         tauri_version: tauri::VERSION.to_string(),
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
-        storage_dir: app
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("could not resolve the app data directory: {e}"))?
-            .to_string_lossy()
-            .into_owned(),
+        storage_dir: storage_root(&app)?.to_string_lossy().into_owned(),
     })
 }
 
 /* ---------- settings ---------- */
 
 pub fn settings_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join("settings.json"))
-        .map_err(|e| format!("could not resolve the app data directory: {e}"))
+    Ok(storage_root(app)?.join("settings.json"))
 }
 
 fn view<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> SettingsView {
