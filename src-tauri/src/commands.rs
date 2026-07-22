@@ -19,12 +19,16 @@ use crate::storage::{self, CaptureMeta, GalleryItem};
 
 /// Window label of the fullscreen region-selection overlay.
 pub const OVERLAY_LABEL: &str = "region-overlay";
+/// Window label of the small Stop panel shown while a scrolling capture runs.
+pub const SCROLL_LABEL: &str = "scroll-control";
 pub const MAIN_LABEL: &str = "main";
 
 /// Emitted after a capture lands in the gallery, so the main window can open it.
 const CAPTURE_CREATED: &str = "capture://created";
 /// Emitted when macOS refuses screen capture, so the UI can offer a way out.
 const PERMISSION_DENIED: &str = "capture://permission-denied";
+/// Emitted as a scrolling capture grows, for the Stop panel.
+const SCROLL_PROGRESS: &str = "capture://scroll-progress";
 
 /// How long to wait after hiding our own window before a full-screen grab.
 ///
@@ -44,6 +48,8 @@ pub struct AppState {
     /// compositor to finish hiding the overlay is guesswork; this removes the
     /// race instead of trying to out-wait it.
     pub pending_frame: Mutex<Option<crate::capture::Capture>>,
+    /// The scrolling capture currently running, if any.
+    pub scroll: Mutex<Option<crate::scroll::Session>>,
 }
 
 /// Settings plus the runtime facts the UI needs to explain itself.
@@ -122,6 +128,12 @@ pub fn list_monitors(state: State<'_, AppState>) -> Result<Vec<MonitorInfo>, Str
 ///
 /// Must **not** be called from the main thread: see `open_region_overlay`.
 pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    show_region_overlay_with(app, "index.html")
+}
+
+/// As above, but at a chosen URL - the overlay is told which kind of capture it
+/// is selecting for by the query it is opened with, so one window serves both.
+pub fn show_region_overlay_with<R: Runtime>(app: &AppHandle<R>, url: &str) -> Result<(), String> {
     // Check before the overlay appears: being asked to drag a region and only
     // then being told it was refused is a waste of the user's time. The hotkey
     // path has no dialog of its own, so surface it on the main window.
@@ -163,7 +175,7 @@ pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String>
         .map_err(|e| e.to_string())? = Some(frame);
 
 
-    let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("index.html".into()))
+    let window = WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App(url.into()))
         .title("Select a region")
         .position(position.x as f64, position.y as f64)
         .inner_size(size.width as f64, size.height as f64)
@@ -215,6 +227,22 @@ pub async fn close_region_overlay<R: Runtime>(
     Ok(())
 }
 
+/// A drag in window-relative logical pixels, as virtual-desktop coordinates.
+///
+/// A browser mouse event gives you the former; capture needs the latter, and
+/// only this layer knows the window's own origin. Tauri reports that position in
+/// physical pixels while the drag is logical, which is the conversion here.
+fn to_virtual<R: Runtime>(window: &Window<R>, region: LogicalRegion) -> Result<LogicalRegion, String> {
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let origin = window.outer_position().map_err(|e| e.to_string())?;
+    Ok(LogicalRegion {
+        x: origin.x as f64 / scale + region.x,
+        y: origin.y as f64 / scale + region.y,
+        width: region.width,
+        height: region.height,
+    })
+}
+
 /// Capture a dragged region and file it in the gallery.
 ///
 /// `region` arrives in **logical pixels relative to the calling window** - that is
@@ -229,16 +257,7 @@ pub async fn capture_region<R: Runtime>(
 ) -> Result<CaptureMeta, String> {
     permission::ensure()?;
 
-    let scale = window.scale_factor().map_err(|e| e.to_string())?;
-    let origin = window.outer_position().map_err(|e| e.to_string())?;
-
-    // Tauri reports window position in physical pixels; the drag is logical.
-    let virtual_region = LogicalRegion {
-        x: origin.x as f64 / scale + region.x,
-        y: origin.y as f64 / scale + region.y,
-        width: region.width,
-        height: region.height,
-    };
+    let virtual_region = to_virtual(&window, region)?;
 
     if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = overlay.close();
@@ -438,6 +457,162 @@ pub fn capture_file_path<R: Runtime>(app: AppHandle<R>, id: String) -> Result<St
     let dir = gallery_dir(&app)?;
     to_string_err(storage::capture_path(&dir, &id))
         .map(|path| path.to_string_lossy().into_owned())
+}
+
+/// Open the region overlay to choose what a scrolling capture will watch.
+///
+/// Must stay `async` for the same reason `open_region_overlay` does.
+#[tauri::command]
+pub async fn open_scroll_overlay<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        // The overlay is told which kind of capture it is selecting for by the
+        // URL it is opened with, so one window serves both.
+        show_region_overlay_with(&app, "index.html?scroll=1")
+    })
+    .await
+    .map_err(|error| format!("could not open the overlay: {error}"))?
+}
+
+/// Begin watching a region while the user scrolls.
+///
+/// The overlay closes and a small Stop panel opens *outside* the chosen region -
+/// it has to be, because every frame is a fresh grab of the screen and anything
+/// overlapping the region would be captured along with it.
+#[tauri::command]
+pub async fn start_scroll_capture<R: Runtime>(
+    app: AppHandle<R>,
+    window: Window<R>,
+    region: LogicalRegion,
+) -> Result<(), String> {
+    permission::ensure()?;
+    let virtual_region = to_virtual(&window, region)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
+            let _ = overlay.close();
+        }
+
+        let progress_app = app.clone();
+        let session = crate::scroll::Session::start(
+            std::sync::Arc::from(crate::capture::create_capture()),
+            virtual_region,
+            move |progress| {
+                let _ = progress_app.emit_to(SCROLL_LABEL, SCROLL_PROGRESS, progress);
+            },
+        )
+        .map_err(|error| format!("{error:#}"))?;
+
+        *app.state::<AppState>()
+            .scroll
+            .lock()
+            .map_err(|e| e.to_string())? = Some(session);
+
+        open_scroll_panel(&app, virtual_region)
+    })
+    .await
+    .map_err(|error| format!("could not start the capture: {error}"))?
+}
+
+/// Stop, join what was collected, and file it in the gallery.
+#[tauri::command]
+pub async fn stop_scroll_capture<R: Runtime>(app: AppHandle<R>) -> Result<CaptureMeta, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = app
+            .state::<AppState>()
+            .scroll
+            .lock()
+            .map_err(|e| e.to_string())?
+            .take()
+            .ok_or_else(|| "no scrolling capture is running".to_string())?;
+
+        let scale_factor = session.scale_factor;
+        let origin = session.origin;
+        let image = session.stop().map_err(|error| format!("{error:#}"))?;
+
+        close_scroll_panel(&app);
+
+        let dir = gallery_dir(&app)?;
+        let meta = to_string_err(storage::save_capture(&dir, &image, scale_factor, origin))?;
+        surface_main_window(&app);
+        let _ = app.emit_to(MAIN_LABEL, CAPTURE_CREATED, meta.clone());
+        Ok(meta)
+    })
+    .await
+    .map_err(|error| format!("could not finish the capture: {error}"))?
+}
+
+/// Stop and throw it away.
+#[tauri::command]
+pub async fn cancel_scroll_capture<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Ok(mut slot) = app.state::<AppState>().scroll.lock() {
+            if let Some(session) = slot.take() {
+                session.cancel();
+            }
+        }
+        close_scroll_panel(&app);
+        Ok(())
+    })
+    .await
+    .map_err(|error| format!("could not stop the capture: {error}"))?
+}
+
+fn close_scroll_panel<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(panel) = app.get_webview_window(SCROLL_LABEL) {
+        let _ = panel.close();
+    }
+}
+
+/// Put the Stop panel somewhere it will not be captured.
+///
+/// Every frame is a fresh grab, so a panel sitting over the region would appear
+/// in the result. It goes above the region if there is room, below if not, and
+/// otherwise in a corner - at which point it *will* be in shot, but a capture
+/// covering the whole screen has nowhere else to put it.
+fn open_scroll_panel<R: Runtime>(app: &AppHandle<R>, region: LogicalRegion) -> Result<(), String> {
+    const W: f64 = 260.0;
+    const H: f64 = 92.0;
+    const GAP: f64 = 12.0;
+
+    let monitor = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .ok_or_else(|| "no monitor available".to_string())?;
+    let scale = monitor.scale_factor();
+    let screen = monitor.size().to_logical::<f64>(scale);
+    let screen_origin = monitor.position().to_logical::<f64>(scale);
+
+    let x = (region.x + region.width / 2.0 - W / 2.0)
+        .clamp(screen_origin.x, screen_origin.x + screen.width - W);
+    let above = region.y - H - GAP;
+    let below = region.y + region.height + GAP;
+    let y = if above >= screen_origin.y {
+        above
+    } else if below + H <= screen_origin.y + screen.height {
+        below
+    } else {
+        screen_origin.y + GAP
+    };
+
+    WebviewWindowBuilder::new(
+        app,
+        SCROLL_LABEL,
+        WebviewUrl::App("index.html?scroll-panel=1".into()),
+    )
+    .title("Scrolling capture")
+    .inner_size(W, H)
+    .position(x, y)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .shadow(false)
+    .focused(true)
+    .build()
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 /// Whether this build can read text from an image at all.

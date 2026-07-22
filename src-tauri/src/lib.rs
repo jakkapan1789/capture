@@ -2,6 +2,7 @@ mod capture;
 mod commands;
 mod hotkey;
 mod ocr;
+mod scroll;
 mod settings;
 mod stitch;
 mod storage;
@@ -33,6 +34,7 @@ pub fn run() {
             recognizer: ocr::create_recognizer(),
             settings: Mutex::new(settings::Settings::default()),
             pending_frame: Mutex::new(None),
+            scroll: Mutex::new(None),
         })
         .setup(|app| {
             let handle = app.handle().clone();
@@ -59,6 +61,10 @@ pub fn run() {
             commands::open_region_overlay,
             commands::close_region_overlay,
             commands::capture_region,
+            commands::open_scroll_overlay,
+            commands::start_scroll_capture,
+            commands::stop_scroll_capture,
+            commands::cancel_scroll_capture,
             commands::capture_monitor,
             commands::read_capture_image,
             commands::read_capture_thumbnail,

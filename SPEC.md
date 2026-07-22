@@ -340,6 +340,36 @@ does not flash an empty window while the chunk arrives.
 Widening or narrowing the history strip changes none of this. The gallery's cost
 is the number of thumbnails read and their size, not the width they are drawn at.
 
+## Scrolling capture
+
+The user scrolls and we watch. Nothing is sent to the window being captured - no
+synthetic scroll events - which is what keeps this off macOS's Accessibility
+permission and out of a fight with elevated windows on Windows. The cost is that
+the scrolling is manual, which the user was going to do anyway to find what they
+wanted.
+
+Frames are grabbed on a background thread every 50ms. A 900x700 region measures
+~20ms to grab and ~1.5ms to join, so 20fps is a deliberate throttle rather than a
+limit: someone scrolling a brisk 1000px/s still leaves 650px of overlap on a
+700px view, far more than the join needs, and grabbing flat out would only spend
+battery.
+
+**The Stop panel is its own window, placed clear of the region.** Every frame is
+a fresh grab of the screen, so a panel over the region would be captured along
+with it. It goes above the region, below it if there is no room, and only in a
+corner as a last resort - where it *will* be in shot, but a capture covering the
+whole screen leaves nowhere else. It shows the height collected because that is
+the one thing you cannot see: the capture is happening in another window, and
+without a number growing there is nothing to say it is working.
+
+**A frame that will not join does not end the capture.** One flick past a
+screenful is a mistake to report, not a reason to discard everything collected so
+far - the next frame usually joins onto the same place. The panel says what went
+wrong and the run continues.
+
+The region overlay serves both kinds of capture; which one is decided by the URL
+it is opened with, so the window does not need to know how it was reached.
+
 ## Scrolling capture: the joining comes first
 
 A scrolling capture is many overlapping frames joined into one tall image. The

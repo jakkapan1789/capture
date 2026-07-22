@@ -107,6 +107,19 @@ export const listMonitors = () => invoke<MonitorInfo[]>("list_monitors");
 export const screenPermissionGranted = () =>
   invoke<boolean>("screen_permission_granted");
 export const openRegionOverlay = () => invoke<void>("open_region_overlay");
+
+/** Emitted to the Stop panel as a scrolling capture grows. */
+export const SCROLL_PROGRESS = "capture://scroll-progress";
+
+/** Open the overlay to pick what a scrolling capture will watch. */
+export const openScrollOverlay = () => invoke<void>("open_scroll_overlay");
+
+/** `region` is in logical pixels relative to the calling window, as for capture. */
+export const startScrollCapture = (region: Region) =>
+  invoke<void>("start_scroll_capture", { region });
+
+export const stopScrollCapture = () => invoke<CaptureMeta>("stop_scroll_capture");
+export const cancelScrollCapture = () => invoke<void>("cancel_scroll_capture");
 export const closeRegionOverlay = () => invoke<void>("close_region_overlay");
 
 /** `region` is in logical pixels relative to the calling window. */

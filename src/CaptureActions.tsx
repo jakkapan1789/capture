@@ -1,4 +1,4 @@
-import { CropIcon, GearIcon, MonitorIcon } from "./lib/icons";
+import { CropIcon, GearIcon, MonitorIcon, ScrollIcon } from "./lib/icons";
 
 /**
  * Capture and settings buttons.
@@ -13,12 +13,14 @@ import { CropIcon, GearIcon, MonitorIcon } from "./lib/icons";
 interface Props {
   onCaptureRegion: () => void;
   onCaptureScreen: () => void;
+  onCaptureScrolling: () => void;
   onOpenSettings: () => void;
 }
 
 export default function CaptureActions({
   onCaptureRegion,
   onCaptureScreen,
+  onCaptureScrolling,
   onOpenSettings,
 }: Props) {
   return (
@@ -40,6 +42,15 @@ export default function CaptureActions({
         aria-label="Capture screen"
       >
         <MonitorIcon size={18} />
+      </button>
+      <button
+        type="button"
+        className="icon-btn"
+        onClick={onCaptureScrolling}
+        title="Scrolling capture - scroll a window and join it into one tall image"
+        aria-label="Scrolling capture"
+      >
+        <ScrollIcon size={18} />
       </button>
       <button
         type="button"

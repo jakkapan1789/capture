@@ -33,6 +33,7 @@ import {
   listMonitors,
   loadGalleryItem,
   openRegionOverlay,
+  openScrollOverlay,
   captureFilePath,
   getSettings,
   readCaptureImage,
@@ -42,10 +43,12 @@ import {
 import { loadImageFromBlob } from "./lib/images";
 import type { Annotation } from "./lib/types";
 import RegionOverlay from "./overlay/RegionOverlay";
+import ScrollPanel from "./scroll/ScrollPanel";
 import SettingsDialog from "./settings/SettingsDialog";
 
 /** Both windows load the same bundle; the label decides which app they get. */
 const OVERLAY_LABEL = "region-overlay";
+const SCROLL_PANEL_LABEL = "scroll-control";
 
 /**
  * Objects copied with Copy / Cmd+C.
@@ -220,6 +223,14 @@ function CaptureApp() {
     }
   };
 
+  const onCaptureScrolling = async () => {
+    try {
+      await openScrollOverlay();
+    } catch (error) {
+      if (!handledPermission(error)) flash(`Could not start a scrolling capture: ${error}`);
+    }
+  };
+
   const onDelete = useCallback(
     async (id: string) => {
       await deleteGalleryItem(id);
@@ -328,6 +339,7 @@ function CaptureApp() {
     <CaptureActions
       onCaptureRegion={() => void onCaptureRegion()}
       onCaptureScreen={() => void onCaptureScreen()}
+      onCaptureScrolling={() => void onCaptureScrolling()}
       onOpenSettings={() => setSettingsOpen(true)}
     />
   );
@@ -430,7 +442,9 @@ function CaptureApp() {
 }
 
 export default function App() {
-  const isOverlay = getCurrentWindow().label === OVERLAY_LABEL;
+  const label = getCurrentWindow().label;
+  const isOverlay = label === OVERLAY_LABEL;
+  const isScrollPanel = label === SCROLL_PANEL_LABEL;
 
   /**
    * Suppress the webview's own context menu everywhere.
@@ -452,8 +466,12 @@ export default function App() {
 
   useEffect(() => {
     // The overlay window must not paint an opaque background over the screen.
-    document.body.classList.toggle("transparent", isOverlay);
-  }, [isOverlay]);
+    // Neither of the small windows may paint an opaque background over the
+    // screen they are sitting on top of.
+    document.body.classList.toggle("transparent", isOverlay || isScrollPanel);
+  }, [isOverlay, isScrollPanel]);
 
-  return isOverlay ? <RegionOverlay /> : <CaptureApp />;
+  if (isOverlay) return <RegionOverlay />;
+  if (isScrollPanel) return <ScrollPanel />;
+  return <CaptureApp />;
 }

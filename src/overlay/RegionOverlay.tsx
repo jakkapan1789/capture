@@ -7,7 +7,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { captureRegion, closeRegionOverlay, type Region } from "../lib/ipc";
+import {
+  captureRegion,
+  closeRegionOverlay,
+  startScrollCapture,
+  type Region,
+} from "../lib/ipc";
+
+/** Whether this overlay is picking a region for a scrolling capture. */
+const FOR_SCROLLING = new URLSearchParams(location.search).has("scroll");
 
 /** Ignore stray clicks and accidental micro-drags. */
 const MIN_DRAG = 4;
@@ -76,7 +84,11 @@ export default function RegionOverlay() {
 
     capturing.current = true;
     try {
-      await captureRegion(region);
+      // The same drag, selecting for a different kind of capture. Which one is
+      // decided by the URL the overlay was opened with, so this window does not
+      // need to know how it was reached.
+      if (FOR_SCROLLING) await startScrollCapture(region);
+      else await captureRegion(region);
     } catch (error) {
       console.error("region capture failed", error);
       cancel();
