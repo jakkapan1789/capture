@@ -421,6 +421,12 @@ the size picker. That is what the rule below is for.
 Either way the crop+step state scrolls slightly, rather than every window being
 sized for a state most sessions never enter.
 
+**Height** was never measured at all, and the 520px it sat at was too small:
+the Settings dialog is 538px tall and About with its licence list open is 532px,
+so both were clipped by the window they were shown in. Nothing scrolls there, so
+the buttons at the bottom were simply unreachable. `minHeight = 670` fits them
+with room to spare, and the default height moved with it.
+
 **Re-measure whenever the toolbar gains a control** — adding the ellipse tool
 alone moved it from 883 to 919.
 
