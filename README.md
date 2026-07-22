@@ -19,7 +19,7 @@ fail.
 ## Features
 
 - Region and full-screen capture, with a global hotkey you can rebind
-- Arrow, box, text that wraps in a box you drag, auto-numbering step badges, blur / pixelate
+- Arrow, box, text that wraps in a box you drag and can sit on an opaque plate, auto-numbering step badges, blur / pixelate
 - Crop and cut-out that work like Paint, but non-destructively
 - Read text out of a capture with the OS's own OCR, shown for review before copying — no upload, nothing bundled (macOS; Windows to follow)
 - Undo/redo, multi-select, copy/paste of objects between captures

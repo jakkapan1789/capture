@@ -13,6 +13,7 @@ import {
   ExpandIcon,
   MinusIcon,
   OcrIcon,
+  TextPlateIcon,
   MosaicIcon,
   PlusIcon,
   RedoIcon,
@@ -44,6 +45,9 @@ const TOOLS: {
 interface Props {
   /** Tools this platform cannot run, shown but not selectable. */
   disabledTools?: Tool[];
+  /** Whether text is drawn on an opaque plate. */
+  textBackground: boolean;
+  onTextBackgroundChange: (on: boolean) => void;
   tool: Tool;
   onToolChange: (tool: Tool) => void;
   /** The selected annotation when exactly one is selected, else null. */
@@ -70,6 +74,8 @@ interface Props {
 export default function Toolbar({
   tool,
   disabledTools,
+  textBackground,
+  onTextBackgroundChange,
   onToolChange,
   selected,
   hasCrop,
@@ -177,6 +183,28 @@ export default function Toolbar({
               aria-label="Choose a colour"
             />
           </label>
+        </div>
+      )}
+
+      {showFontSize && (
+        <div className="btn-group">
+          {/* Paint's Opaque/Transparent. A pressed toggle rather than two
+              buttons: it is one setting with two states, and `aria-pressed`
+              says which without needing a label. */}
+          <button
+            type="button"
+            className={textBackground ? "btn icon-only active" : "btn icon-only"}
+            aria-pressed={textBackground}
+            onClick={() => onTextBackgroundChange(!textBackground)}
+            title={
+              textBackground
+                ? "Text background: on - click for transparent"
+                : "Text background: off - click for an opaque plate"
+            }
+            aria-label="Opaque text background"
+          >
+            <TextPlateIcon />
+          </button>
         </div>
       )}
 

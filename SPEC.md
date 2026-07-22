@@ -252,6 +252,19 @@ Clicking without dragging places a label that grows with what is typed instead.
 Paint makes you size a box either way; for a two-word caption on a screenshot
 that is work for nothing, and the two modes cost one optional field.
 
+Text can sit on an **opaque plate** - Paint's Opaque/Transparent - toggled from
+the toolbar and remembered for the next one, like colour and size. On a busy
+screenshot it is the difference between a caption you can read and one lost in
+the picture.
+
+The plate is Konva's `Label`/`Tag`, whose tag sizes itself to the text it
+contains. That matters with a wrapping box, where the height is only known once
+the text has been laid out; a plain rectangle would mean measuring the text
+ourselves and keeping the two in step. Turning it on grows the plate *outwards* -
+the label is offset by the padding it adds - so the words do not jump. A test
+checks that from the rendered pixels rather than from node positions, because the
+text node legitimately moves by the padding while the glyphs inside move back.
+
 It also draws **on** the picture rather than over it. The old version painted a
 55%-black slab behind the text, which hid the very thing the text is being
 positioned against, and put a red placeholder on grey. Now the annotation appears

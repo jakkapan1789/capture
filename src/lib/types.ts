@@ -81,6 +81,13 @@ export interface TextAnnotation extends BaseAnnotation {
    */
   boxWidth?: number;
   /**
+   * Colour of the plate behind the text, or absent for none.
+   *
+   * Paint's Opaque/Transparent choice. On a busy screenshot an opaque plate is
+   * the difference between a caption you can read and one lost in the picture.
+   */
+  background?: string;
+  /**
    * Size in **logical** pixels, i.e. the number the user picked.
    *
    * Unlike every other measurement in this file, this is not in image pixels.
@@ -234,6 +241,12 @@ export const ANNOTATION_FONT =
 
 /** Line height, again shared so a second line lands in the same place in both. */
 export const ANNOTATION_LINE_HEIGHT = 1.25;
+
+/** Breathing room between the words and the edge of an opaque plate, logical px. */
+export const TEXT_PADDING = 5;
+
+/** The plate colour. White, because the text itself is usually a bright accent. */
+export const TEXT_BACKGROUND = "#ffffff";
 
 /** Default text size, in logical pixels. */
 export const DEFAULT_FONT_SIZE = 16;

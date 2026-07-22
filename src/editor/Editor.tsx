@@ -23,7 +23,6 @@ import {
   Layer,
   Rect,
   Stage,
-  Text,
   Transformer,
 } from "react-konva";
 
@@ -60,6 +59,8 @@ import {
   persistableAnnotations,
   rectsIntersect,
   stepNumbers,
+  TEXT_BACKGROUND,
+  TEXT_PADDING,
   type Annotation,
   type BlurAnnotation,
   type Rect as RectBounds,
@@ -70,6 +71,7 @@ import Toolbar from "./Toolbar";
 import ArrowShape from "./shapes/ArrowShape";
 import BlurRegion from "./shapes/BlurRegion";
 import ImageObject from "./shapes/ImageObject";
+import TextShape from "./shapes/TextShape";
 import EllipseShape from "./shapes/EllipseShape";
 import StepBadge from "./shapes/StepBadge";
 import { useAnnotations } from "./useAnnotations";
@@ -172,7 +174,12 @@ export default function Editor({
    * `fontSize` is in logical pixels; it is multiplied by `unit` at render time so
    * a given number looks the same on any capture.
    */
-  const [style, setStyle] = useState({ color: ACCENT, fontSize: DEFAULT_FONT_SIZE });
+  const [style, setStyle] = useState({
+    color: ACCENT,
+    fontSize: DEFAULT_FONT_SIZE,
+    /** Paint's Opaque/Transparent, remembered for the next text like the rest. */
+    textBackground: false,
+  });
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -1086,6 +1093,7 @@ export default function Editor({
           text: "Text",
           fontSize: style.fontSize,
           fill: style.color,
+          ...(style.textBackground ? { background: TEXT_BACKGROUND } : {}),
           ...(dragged ? { boxWidth: bounds.width } : {}),
         });
         setEditingId(id);
@@ -1205,6 +1213,10 @@ export default function Editor({
    * `scrollWidth`/`scrollHeight` report the content rather than the box that was
    * already there, so it shrinks as well as grows.
    */
+  /** Padding a text annotation draws with, in image pixels. */
+  const textPad = (annotation: { background?: string }) =>
+    annotation.background ? TEXT_PADDING * unit : 0;
+
   const fitTextEditor = (node: HTMLTextAreaElement, boxWidth?: number) => {
     // A dragged box keeps the width it was given and only grows downwards, so
     // the wrap points stay where the user put them. A clicked one tracks its
@@ -1309,10 +1321,21 @@ export default function Editor({
     }
   };
 
+  const applyTextBackground = (on: boolean) => {
+    setStyle((previous) => ({ ...previous, textBackground: on }));
+    for (const annotation of selected) {
+      if (annotation.type === "text") {
+        update(annotation.id, { background: on ? TEXT_BACKGROUND : undefined });
+      }
+    }
+  };
+
   // Show the controls' current value from the selection when there is one, so the
   // toolbar reflects what you are looking at rather than what you last picked.
   const activeColor = (single && colorOf(single)) ?? style.color;
   const activeFontSize = single?.type === "text" ? single.fontSize : style.fontSize;
+  const activeTextBackground =
+    single?.type === "text" ? single.background !== undefined : style.textBackground;
   const showColor =
     ["text", "arrow", "rect", "step"].includes(tool) ||
     selected.some((annotation) => colorOf(annotation) !== null);
@@ -1339,6 +1362,8 @@ export default function Editor({
         showFontSize={showFontSize}
         fontSize={activeFontSize}
         onFontSizeChange={applyFontSize}
+        textBackground={activeTextBackground}
+        onTextBackgroundChange={applyTextBackground}
         onResetCrop={() => crop && remove([crop.id])}
         onReorderStep={(delta) => single && reorderStep(single.id, delta)}
         onToggleBlurMode={() =>
@@ -1437,29 +1462,14 @@ export default function Editor({
                     );
                   case "text":
                     return (
-                      <Text
+                      <TextShape
                         key={annotation.id}
-                        id={annotation.id}
-                        x={annotation.x}
-                        y={annotation.y}
-                        text={annotation.text}
-                        // Stored in logical pixels; scaled here so the same
-                        // number looks identical on any capture's DPI.
-                        fontSize={annotation.fontSize * unit}
-                        fontFamily={ANNOTATION_FONT}
-                        lineHeight={ANNOTATION_LINE_HEIGHT}
-                        // Only set when a box was dragged; leaving it undefined
-                        // lets Konva size to the text, which is the click case.
-                        width={annotation.boxWidth}
-                        wrap="word"
-                        fontStyle="bold"
-                        fill={annotation.fill}
+                        annotation={annotation}
+                        unit={unit}
+                        editing={annotation.id === editingId}
                         draggable={draggableNow}
-                        visible={annotation.id !== editingId}
-                        onDblClick={() => setEditingId(annotation.id)}
-                        onDragEnd={(event) =>
-                          update(annotation.id, { x: event.target.x(), y: event.target.y() })
-                        }
+                        onChange={(patch) => update(annotation.id, patch)}
+                        onEdit={() => setEditingId(annotation.id)}
                       />
                     );
                   case "step":
@@ -1696,13 +1706,18 @@ export default function Editor({
               wrap={editing.boxWidth === undefined ? "off" : "soft"}
               spellCheck={false}
               style={{
-                left: (editing.x - viewport.x) * fitScale,
-                top: (editing.y - viewport.y) * fitScale,
+                // Matches TextShape: the plate grows outwards from the words, so
+                // the glyphs stay put whether it is on or off.
+                left: (editing.x - viewport.x) * fitScale - textPad(editing) * fitScale,
+                top: (editing.y - viewport.y) * fitScale - textPad(editing) * fitScale,
+                padding: textPad(editing) * fitScale,
+                background: editing.background ?? "transparent",
                 fontSize: editing.fontSize * unit * fitScale,
                 width:
                   editing.boxWidth === undefined
                     ? undefined
                     : editing.boxWidth * fitScale,
+                boxSizing: "content-box",
                 whiteSpace: editing.boxWidth === undefined ? "pre" : "pre-wrap",
                 fontFamily: ANNOTATION_FONT,
                 lineHeight: ANNOTATION_LINE_HEIGHT,
