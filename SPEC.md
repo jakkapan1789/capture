@@ -365,6 +365,12 @@ next one is a field in three places rather than a new command. The hotkey keeps
 its own command because setting it can fail and has to be rolled back, which is
 a different shape of operation.
 
+Where captures are stored lives in Settings, not About. It used to sit among the
+credits, but it is not part of the app's identity - it is the only way to find
+your own files from inside the app, and it is where a configurable location
+would have to go anyway. About answers "what is this and who made it"; nothing
+on it is actionable except the support address.
+
 About is reachable two ways and behaves differently in each. Opened from
 Settings it offers **Back**, which returns to Settings; opened from the
 application menu there is nothing behind it, so it offers Close instead - a Back

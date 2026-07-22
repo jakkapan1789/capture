@@ -766,6 +766,16 @@ button {
   color: var(--muted);
 }
 
+.setting-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* A shade smaller than the descriptions around it: a path is reference
+     material, not something to read every time the dialog opens. */
+  font-size: 11.5px;
+}
+
 /* Reserved space for hint / warning / error. Sized to the tallest of them - the
    bordered boxes - so swapping between them never resizes the dialog. */
 .setting-message {
@@ -1307,22 +1317,6 @@ button {
   user-select: text;
 }
 
-.about-path {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-/* The path is long and the least important part of the row - let it truncate
-   rather than push the button out of reach. */
-.about-path span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11.5px;
-  color: var(--muted);
-}
 
 .link-btn {
   padding: 0;

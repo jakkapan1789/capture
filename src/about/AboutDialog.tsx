@@ -1,4 +1,4 @@
-import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 
 import { BackIcon, CropIcon } from "../lib/icons";
@@ -107,20 +107,6 @@ export default function AboutDialog({ onClose, onBack }: Props) {
           <div>
             <dt>Platform</dt>
             <dd>{platform || "..."}</dd>
-          </div>
-          <div>
-            <dt>Storage</dt>
-            <dd className="about-path">
-              <span title={info?.storageDir}>{info?.storageDir ?? "..."}</span>
-              <button
-                type="button"
-                className="link-btn"
-                disabled={!info}
-                onClick={() => info && void revealItemInDir(info.storageDir)}
-              >
-                Show
-              </button>
-            </dd>
           </div>
         </dl>
 

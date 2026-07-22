@@ -2,14 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 
 import { buildAccelerator, formatAccelerator, isModifierCode, MAX_KEYS } from "../lib/hotkey";
 import {
+  appInfo,
   getSettings,
   setCaptureHotkey,
   updatePreferences,
+  type AppInfo,
   type PreferencesPatch,
   type SettingsView,
 } from "../lib/ipc";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import Toggle from "../components/Toggle";
-import { InfoIcon } from "../lib/icons";
+import { FolderIcon, InfoIcon } from "../lib/icons";
 
 interface Props {
   onClose: () => void;
@@ -23,6 +26,14 @@ interface Props {
 
 export default function SettingsDialog({ onClose, onShowAbout, onSettingsChange }: Props) {
   const [settings, setSettings] = useState<SettingsView | null>(null);
+  /**
+   * Runtime facts, for the storage path.
+   *
+   * Where captures are kept is a settings question, not part of the app's
+   * identity - which is why it moved off the About screen. It is still read from
+   * `app_info`, the one place that knows the resolved path.
+   */
+  const [info, setInfo] = useState<AppInfo | null>(null);
   const [recording, setRecording] = useState(false);
   /** Modifiers shown live while the user is still holding keys down. */
   const [held, setHeld] = useState("");
@@ -57,6 +68,10 @@ export default function SettingsDialog({ onClose, onShowAbout, onSettingsChange 
       .then(applyView)
       .catch((cause) => setError(`Could not load settings: ${cause}`));
   }, [applyView]);
+
+  useEffect(() => {
+    void appInfo().then(setInfo).catch(() => setInfo(null));
+  }, []);
 
   const setPreference = useCallback(
     async (patch: PreferencesPatch) => {
@@ -308,6 +323,30 @@ export default function SettingsDialog({ onClose, onShowAbout, onSettingsChange 
               disabled={saving || !settings}
               onChange={(checked) => void setPreference({ autoCopyToClipboard: checked })}
             />
+          </div>
+        </section>
+
+        <section className="setting-group">
+          <h3 className="setting-group-title">Storage</h3>
+
+          <div className="setting">
+            <div className="setting-text">
+              <strong>Captures folder</strong>
+              <span className="setting-path" title={info?.storageDir}>
+                {info?.storageDir ?? "..."}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="btn"
+              disabled={!info}
+              onClick={() => info && void revealItemInDir(info.storageDir)}
+              title="Open this folder in the file manager"
+            >
+              <FolderIcon size={15} />
+              Show
+            </button>
           </div>
         </section>
 
