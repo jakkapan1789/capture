@@ -21,7 +21,6 @@ import GalleryStrip from "./gallery/GalleryStrip";
 import AboutDialog from "./about/AboutDialog";
 import PermissionDialog from "./PermissionDialog";
 import CaptureActions from "./CaptureActions";
-import { GearIcon } from "./lib/icons";
 import {
   CAPTURE_CREATED,
   MENU_ABOUT,
@@ -325,17 +324,19 @@ function CaptureApp() {
     [refresh, flash],
   );
 
+  const captureActions = (
+    <CaptureActions
+      onCaptureRegion={() => void onCaptureRegion()}
+      onCaptureScreen={() => void onCaptureScreen()}
+      onOpenSettings={() => setSettingsOpen(true)}
+    />
+  );
+
   return (
     <div className="app">
 
       <div className="app-body">
         <GalleryStrip
-          captureActions={
-            <CaptureActions
-              onCaptureRegion={() => void onCaptureRegion()}
-              onCaptureScreen={() => void onCaptureScreen()}
-            />
-          }
           items={items}
           activeId={pendingId ?? open?.meta.id ?? null}
           onOpen={handleOpen}
@@ -353,6 +354,7 @@ function CaptureApp() {
               <main className="editor">
                 <div className="toolbar">
                   <div className="toolbar-spacer" />
+                  {captureActions}
                 </div>
                 <div className="empty-state" />
               </main>
@@ -367,29 +369,19 @@ function CaptureApp() {
             onSave={onSave}
             status={status}
             onNotify={flash}
+            actions={captureActions}
             clipboard={clipboard}
             onClipboardChange={setClipboard}
-            onOpenSettings={() => setSettingsOpen(true)}
           />
           </Suspense>
         ) : (
           <main className="editor">
-            {/* Same single row as the editor's toolbar, so nothing shifts
-                between the two states. */}
+            {/* Same single row as the editor's toolbar, so the capture buttons
+                never move between the two states. */}
             <div className="toolbar">
               <div className="toolbar-spacer" />
               {status && <span className="status">{status}</span>}
-              <div className="btn-group trailing">
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={() => setSettingsOpen(true)}
-                  title="Settings"
-                  aria-label="Settings"
-                >
-                  <GearIcon size={18} />
-                </button>
-              </div>
+              {captureActions}
             </div>
             <div className="empty-state">
               <h1>Nothing open</h1>

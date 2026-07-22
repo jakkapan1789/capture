@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
 
 import ContextMenu from "../components/ContextMenu";
 import { CopyIcon, FolderIcon, ImageIcon, TrashIcon } from "../lib/icons";
@@ -23,8 +22,6 @@ const PRELOAD_MARGIN = 300;
 const SCROLL_THROTTLE = 80;
 
 interface Props {
-  /** Capture buttons, above the list they add to. */
-  captureActions: ReactNode;
   items: CaptureMeta[];
   activeId: string | null;
   onOpen: (id: string) => void;
@@ -44,7 +41,6 @@ function formatTime(millis: number): string {
 }
 
 function GalleryStrip({
-  captureActions,
   items,
   activeId,
   onOpen,
@@ -129,8 +125,6 @@ function GalleryStrip({
   return (
     <aside className="gallery">
       {/* Outside the scrolling area, so it stays put however far you scroll. */}
-      {captureActions}
-
       <div className="gallery-header">
         <h2 className="gallery-title">
           History

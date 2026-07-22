@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import Select from "../components/Select";
 
@@ -9,7 +9,6 @@ import {
   CircleIcon,
   CropToolIcon,
   CutIcon,
-  GearIcon,
   DropletIcon,
   ExpandIcon,
   MinusIcon,
@@ -64,7 +63,8 @@ interface Props {
   onReorderStep: (delta: -1 | 1) => void;
   onToggleBlurMode: () => void;
   status: string | null;
-  onOpenSettings: () => void;
+  /** Pinned to the far right, after the status text. */
+  actions: ReactNode;
 }
 
 export default function Toolbar({
@@ -87,7 +87,7 @@ export default function Toolbar({
   onReorderStep,
   onToggleBlurMode,
   status,
-  onOpenSettings,
+  actions,
 }: Props) {
   return (
     <div className="toolbar">
@@ -233,17 +233,7 @@ export default function Toolbar({
 
       {status && <span className="status">{status}</span>}
 
-      <div className="btn-group trailing">
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={onOpenSettings}
-          title="Settings"
-          aria-label="Settings"
-        >
-          <GearIcon size={18} />
-        </button>
-      </div>
+      {actions}
     </div>
   );
 }

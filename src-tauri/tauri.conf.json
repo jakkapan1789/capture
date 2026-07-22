@@ -14,9 +14,9 @@
       {
         "label": "main",
         "title": "Capture",
-        "width": 1010,
+        "width": 1090,
         "height": 790,
-        "minWidth": 1010,
+        "minWidth": 1090,
         "minHeight": 670,
         "theme": "Dark",
         "backgroundColor": "#16171a"

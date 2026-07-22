@@ -14,6 +14,7 @@ import Konva from "konva";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   Arrow,
@@ -116,7 +117,8 @@ interface Props {
   onSave: (blob: Blob) => Promise<void>;
   status: string | null;
   onNotify: (message: string) => void;
-  onOpenSettings: () => void;
+  /** Capture and settings buttons, pinned to the far right of the toolbar. */
+  actions: ReactNode;
   /** Copied objects, owned by the app so they outlive a capture switch. */
   clipboard: ObjectClipboard;
   onClipboardChange: (clipboard: ObjectClipboard) => void;
@@ -147,7 +149,7 @@ export default function Editor({
   onSave,
   status,
   onNotify,
-  onOpenSettings,
+  actions,
   clipboard,
   onClipboardChange,
 }: Props) {
@@ -1382,7 +1384,7 @@ export default function Editor({
           } as Partial<BlurAnnotation>)
         }
         status={status}
-        onOpenSettings={onOpenSettings}
+        actions={actions}
       />
 
       <div className="canvas-area" ref={containerRef}>

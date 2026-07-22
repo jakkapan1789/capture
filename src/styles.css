@@ -1058,23 +1058,6 @@ button {
 
 /* ---------- gallery ---------- */
 
-/* The two capture actions, above the list they add to. Full width and labelled:
-   there is room in the sidebar, and the app's primary action should not be a
-   hover-and-wait guess the way an icon-only tool can afford to be. */
-.capture-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid var(--line);
-}
-
-.capture-btn {
-  justify-content: flex-start;
-  width: 100%;
-  padding: 8px 10px;
-}
-
 /* A fixed header over a scrolling list, rather than one scrolling panel: the
    title and the cleanup button must stay reachable at any scroll position. */
 .gallery {
