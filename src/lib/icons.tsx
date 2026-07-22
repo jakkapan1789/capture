@@ -233,6 +233,18 @@ export const CropIcon = (props: { size?: number }) => (
   </Svg>
 );
 
+/** Text inside a frame: read the words in this region. */
+export const OcrIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <path d="M3.5 8 V4.5 H7" />
+    <path d="M17 4.5 H20.5 V8" />
+    <path d="M20.5 16 V19.5 H17" />
+    <path d="M7 19.5 H3.5 V16" />
+    <path d="M8 9.2 H16" />
+    <path d="M12 9.2 V15" />
+  </Svg>
+);
+
 export const InfoIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <circle cx="12" cy="12" r="9" />

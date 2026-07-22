@@ -21,6 +21,7 @@ fail.
 - Region and full-screen capture, with a global hotkey you can rebind
 - Arrow, box, text, auto-numbering step badges, blur / pixelate
 - Crop and cut-out that work like Paint, but non-destructively
+- Copy text out of a capture with the OS's own OCR — no upload, nothing bundled (macOS; Windows to follow)
 - Undo/redo, multi-select, copy/paste of objects between captures
 - Auto-saving history you can reopen and keep editing
 - Export to PNG or copy straight to the clipboard

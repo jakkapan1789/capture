@@ -40,6 +40,19 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-opener = "2.5.4"
 
+# OCR on macOS uses the Vision framework, which ships with the OS - no model to
+# bundle and nothing to download. Only the pieces text recognition needs.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSDictionary", "NSString", "NSValue"] }
+objc2-vision = { version = "0.3", features = [
+  "VNRequest",
+  "VNRecognizeTextRequest",
+  "VNRequestHandler",
+  "VNObservation",
+  "VNTypes",
+] }
+
 # Our own code stays unoptimised so `tauri dev` rebuilds stay fast, but the
 # dependencies get optimised. PNG encoding lives entirely in `image`/`png`/
 # `flate2`, and unoptimised a full-screen capture takes ~1.4s to save against

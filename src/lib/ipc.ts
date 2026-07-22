@@ -88,6 +88,21 @@ export const setCaptureHotkey = (hotkeyAccelerator: string | null) =>
 export const updatePreferences = (patch: PreferencesPatch) =>
   invoke<SettingsView>("update_preferences", { patch });
 
+export interface RecognizedLine {
+  text: string;
+  /** 0-1, as reported by the OS engine. Low-confidence lines are already gone. */
+  confidence: number;
+}
+
+export const textRecognitionAvailable = () =>
+  invoke<boolean>("text_recognition_available");
+
+/** Read text from a PNG. Lines arrive in reading order, already filtered. */
+export const recognizeText = async (png: Blob) =>
+  invoke<RecognizedLine[]>("recognize_text", {
+    png: Array.from(new Uint8Array(await png.arrayBuffer())),
+  });
+
 export const listMonitors = () => invoke<MonitorInfo[]>("list_monitors");
 export const screenPermissionGranted = () =>
   invoke<boolean>("screen_permission_granted");

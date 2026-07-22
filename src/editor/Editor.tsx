@@ -11,6 +11,7 @@
  */
 
 import Konva from "konva";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -39,6 +40,8 @@ import ContextMenu from "../components/ContextMenu";
 import {
   readCaptureImage,
   readCapturePiece,
+  recognizeText,
+  textRecognitionAvailable,
   saveAnnotations,
   saveCapturePiece,
   type CaptureMeta,
@@ -87,6 +90,7 @@ const SHORTCUTS: Record<string, Tool> = {
   b: "blur",
   c: "crop",
   x: "cut",
+  g: "ocr",
 };
 
 /** Tools whose selection box the transformer can resize. */
@@ -205,6 +209,20 @@ export default function Editor({
     () => new Map(),
   );
   const loadingPieces = useRef(new Set<string>());
+  /**
+   * Whether this build can read text at all.
+   *
+   * macOS uses Vision; Windows has no implementation yet. Asked once so the
+   * toolbar can grey the tool out instead of letting someone drag a region and
+   * only then be told it does nothing.
+   */
+  const [canReadText, setCanReadText] = useState(false);
+
+  useEffect(() => {
+    void textRecognitionAvailable()
+      .then(setCanReadText)
+      .catch(() => setCanReadText(false));
+  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -898,6 +916,37 @@ export default function Editor({
         setTool("select");
         return;
       }
+      case "ocr": {
+        if (bounds.width < MIN_DRAW || bounds.height < MIN_DRAW) return;
+
+        // Read the picture *as it looks*, like Cut does. Reading the original
+        // pixels instead would let OCR see straight through a blur that was put
+        // there to hide something - the one place where being faithful to the
+        // stored image would be a privacy bug rather than a feature.
+        const canvas = rasterizeRegion(bounds);
+        if (!canvas) return;
+
+        setTool("select");
+        onNotify("Reading text...");
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          void (async () => {
+            try {
+              const lines = await recognizeText(blob);
+              if (lines.length === 0) {
+                onNotify("No text found there");
+                return;
+              }
+              const text = lines.map((line) => line.text).join("\n");
+              await writeText(text);
+              onNotify(lines.length === 1 ? "Copied 1 line" : `Copied ${lines.length} lines`);
+            } catch (error) {
+              onNotify(`Could not read text: ${error}`);
+            }
+          })();
+        }, "image/png");
+        return;
+      }
       case "step": {
         add({
           id: createId(),
@@ -1137,6 +1186,7 @@ export default function Editor({
       <Toolbar
         tool={tool}
         onToolChange={setTool}
+        disabledTools={canReadText ? undefined : ["ocr"]}
         selected={single}
         selectionCount={selected.length}
         hasCrop={Boolean(crop)}
@@ -1465,7 +1515,7 @@ export default function Editor({
                 />
               )}
 
-              {draft && ["rect", "blur", "crop", "cut"].includes(draft.tool) && (
+              {draft && ["rect", "blur", "crop", "cut", "ocr"].includes(draft.tool) && (
                 <Rect
                   {...draftBounds(draft)}
                   stroke={ACCENT}

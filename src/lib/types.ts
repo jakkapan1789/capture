@@ -13,6 +13,7 @@
 
 export type Tool =
   | "select"
+  | "ocr"
   | "arrow"
   | "rect"
   | "ellipse"

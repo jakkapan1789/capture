@@ -13,6 +13,7 @@ use tauri::{
 
 use crate::capture::{permission, LogicalRegion, MonitorInfo, ScreenCapture};
 use crate::hotkey;
+use crate::ocr::{self, RecognizedLine, TextRecognizer};
 use crate::settings::{self, Settings};
 use crate::storage::{self, CaptureMeta, GalleryItem};
 
@@ -34,6 +35,7 @@ const WINDOW_SETTLE: Duration = Duration::from_millis(120);
 
 pub struct AppState {
     pub capture: Box<dyn ScreenCapture>,
+    pub recognizer: Box<dyn TextRecognizer>,
     pub settings: Mutex<Settings>,
     /// The screen as it looked the moment the selection overlay opened.
     ///
@@ -436,6 +438,39 @@ pub fn capture_file_path<R: Runtime>(app: AppHandle<R>, id: String) -> Result<St
     let dir = gallery_dir(&app)?;
     to_string_err(storage::capture_path(&dir, &id))
         .map(|path| path.to_string_lossy().into_owned())
+}
+
+/// Whether this build can read text from an image at all.
+///
+/// Lets the toolbar disable the tool up front rather than letting someone drag a
+/// region and only then be told it does nothing.
+#[tauri::command]
+pub fn text_recognition_available(state: State<'_, AppState>) -> bool {
+    state.recognizer.available()
+}
+
+/// Read text from a PNG.
+///
+/// Async, and the work runs on a blocking thread: recognition takes ~80-100ms on
+/// a region and would otherwise stall the event loop that is drawing the very
+/// selection the user just made.
+///
+/// Low-confidence lines are dropped here rather than in the UI, so every caller
+/// gets the same answer - see `ocr::MIN_CONFIDENCE` for where the threshold
+/// comes from.
+#[tauri::command]
+pub async fn recognize_text<R: Runtime>(
+    app: AppHandle<R>,
+    png: Vec<u8>,
+) -> Result<Vec<RecognizedLine>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let mut lines = to_string_err(state.recognizer.recognize(&png))?;
+        lines.retain(|line| line.confidence >= ocr::MIN_CONFIDENCE);
+        Ok(lines)
+    })
+    .await
+    .map_err(|error| format!("text recognition did not finish: {error}"))?
 }
 
 /// Whether this build may capture the screen. Never prompts.

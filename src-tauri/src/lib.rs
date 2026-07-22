@@ -1,6 +1,7 @@
 mod capture;
 mod commands;
 mod hotkey;
+mod ocr;
 mod settings;
 mod storage;
 
@@ -28,6 +29,7 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .manage(AppState {
             capture: capture::create_capture(),
+            recognizer: ocr::create_recognizer(),
             settings: Mutex::new(settings::Settings::default()),
             pending_frame: Mutex::new(None),
         })
@@ -68,6 +70,8 @@ pub fn run() {
             commands::delete_gallery_items,
             commands::capture_file_path,
             commands::screen_permission_granted,
+            commands::text_recognition_available,
+            commands::recognize_text,
             commands::app_info,
             commands::get_settings,
             commands::set_capture_hotkey,

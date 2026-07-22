@@ -152,6 +152,43 @@ grabbing again. The race is removed instead of out-waited, and the selection now
 shows the screen as it was when you started, which is also what every other
 capture tool does.
 
+## Reading text out of a capture
+
+The OCR tool drags a region and puts its text on the clipboard, the same gesture
+as Cut. It reads the **rendered** region, not the stored PNG - via the same
+`rasterizeRegion` - which matters for more than convenience: reading the
+original pixels would let it see straight through a blur that was put there to
+hide something.
+
+Recognition is whatever the OS provides, behind a `TextRecognizer` trait for the
+same reason capture is. macOS uses **Vision**; Windows will use
+**`Windows.Media.Ocr`**, the engine PowerToys Text Extractor uses. Both ship with
+the operating system, so there is nothing to bundle and nothing leaves the
+machine - which matters more here than usual, since screenshots are exactly the
+kind of thing that should not be uploaded to be read. A bundled engine like
+Tesseract would have added 15-25MB and a model file to an app whose size is the
+reason it is Tauri at all.
+
+Three settings are measured rather than assumed, on real captures and on the
+`ocr-sample.png` fixture:
+
+**`accurate`, never `fast`.** `fast` is roughly 4x quicker (13-28ms against
+80-96ms) but never reports a confidence above 0.50, so there is no way to tell
+its real text from its noise.
+
+**English only.** Not merely simpler - *more accurate*. The same fixture reads at
+confidence 1.00 with `["en-US"]` and 0.50 with `["th-TH", "en-US"]`, because the
+engine has to decide between the languages. It also removes the Windows risk
+entirely: en-US is present on effectively every install, so no language pack is
+needed.
+
+**Lines below 0.5 confidence are dropped.** At `accurate` with one language,
+genuine text comes back at 0.90-1.00 while icons and window chrome misread as
+text land near 0.30 ("WURe CK"). The threshold sits in the gap between them.
+
+Recognition runs on a blocking thread: ~100ms would otherwise stall the event
+loop that is drawing the selection the user just made.
+
 ## Cut flattens, on purpose
 
 Every other annotation stays an object until export. A cut-out cannot: cutting a

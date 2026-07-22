@@ -690,6 +690,18 @@ button {
   margin-top: 10px;
 }
 
+/* A tool the platform cannot run: visible, so its absence is explained by a
+   tooltip rather than by the button silently not being there. */
+.seg-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.seg-btn:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
 /* ---------- toggle switch ---------- */
 
 .toggle {

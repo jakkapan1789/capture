@@ -12,6 +12,7 @@ import {
   DropletIcon,
   ExpandIcon,
   MinusIcon,
+  OcrIcon,
   MosaicIcon,
   PlusIcon,
   RedoIcon,
@@ -38,9 +39,12 @@ const TOOLS: {
   { tool: "blur", label: "Blur", hint: "B", Icon: BlurIcon },
   { tool: "crop", label: "Crop", hint: "C", Icon: CropToolIcon },
   { tool: "cut", label: "Cut", hint: "X", Icon: CutIcon },
+  { tool: "ocr", label: "Copy text", hint: "G", Icon: OcrIcon },
 ];
 
 interface Props {
+  /** Tools this platform cannot run, shown but not selectable. */
+  disabledTools?: Tool[];
   tool: Tool;
   onToolChange: (tool: Tool) => void;
   /** The selected annotation when exactly one is selected, else null. */
@@ -68,6 +72,7 @@ interface Props {
 
 export default function Toolbar({
   tool,
+  disabledTools,
   onToolChange,
   selected,
   selectionCount,
@@ -119,6 +124,7 @@ export default function Toolbar({
       <div className="segmented" role="radiogroup" aria-label="Annotation tool">
         {TOOLS.map(({ tool: value, label, hint, Icon }) => {
           const active = value === tool;
+          const disabled = disabledTools?.includes(value) ?? false;
           return (
             <button
               key={value}
@@ -126,8 +132,13 @@ export default function Toolbar({
               role="radio"
               aria-checked={active}
               className={active ? "seg-btn active" : "seg-btn"}
+              disabled={disabled}
               onClick={() => onToolChange(value)}
-              title={`${label} (${hint})`}
+              title={
+                disabled
+                  ? `${label} is not available on this platform yet`
+                  : `${label} (${hint})`
+              }
               aria-label={label}
             >
               <Icon size={18} />
