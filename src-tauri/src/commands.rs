@@ -525,11 +525,16 @@ pub async fn start_scroll_capture<R: Runtime>(
     permission::ensure()?;
     let virtual_region = to_virtual(&window, region)?;
 
-    tauri::async_runtime::spawn_blocking(move || {
-        if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
-            let _ = overlay.close();
-        }
+    if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
+        overlay.close().map_err(|e| e.to_string())?;
+        // Closing is not synchronous with what the compositor has drawn, and the
+        // very next thing here is the first frame of the capture. Without this
+        // that frame contains the overlay's dimming, nothing afterwards matches
+        // it, and the capture never advances past its own first frame.
+        tokio::time::sleep(WINDOW_SETTLE).await;
+    }
 
+    tauri::async_runtime::spawn_blocking(move || {
         let progress_app = app.clone();
         let session = crate::scroll::Session::start(
             std::sync::Arc::from(crate::capture::create_capture()),

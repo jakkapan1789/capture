@@ -374,6 +374,16 @@ whole screen leaves nowhere else. It shows the height collected because that is
 the one thing you cannot see: the capture is happening in another window, and
 without a number growing there is nothing to say it is working.
 
+**The first frame must not catch the overlay closing.** Closing a window is not
+synchronous with what the compositor has drawn, and the very next thing after
+closing the selection overlay is the first frame of the capture. Without waiting,
+that frame contains the overlay's dimming, nothing afterwards matches it, and -
+because a failed join never advances the baseline - the capture sits on its own
+first frame forever and never grows. That is what "it doesn't work" looked like.
+The wait fixes it; the session also restarts from the newest frame if nothing has
+been collected yet, since a first frame nothing can join to is worth nothing. A
+test spoils the first frame deliberately and fails without that recovery.
+
 **A frame that will not join does not end the capture.** One flick past a
 screenful is a mistake to report, not a reason to discard everything collected so
 far - the next frame usually joins onto the same place. The panel says what went

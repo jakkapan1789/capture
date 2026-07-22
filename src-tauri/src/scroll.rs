@@ -77,6 +77,7 @@ impl Session {
                 (stop.clone(), height.clone(), failure.clone(), result.clone());
 
             std::thread::spawn(move || {
+                let view = first.image.height() as usize;
                 let mut stitcher = Stitcher::new(&first.image);
 
                 while !stop.load(Ordering::Relaxed) {
@@ -109,10 +110,23 @@ impl Session {
                         // next frame usually joins onto the same place, so this
                         // says so and carries on rather than throwing away what
                         // has been collected.
-                        Err(problem) => on_progress(Progress {
-                            height: stitcher.height(),
-                            problem: Some(problem.message().to_string()),
-                        }),
+                        Err(problem) => {
+                            // Unless nothing has been collected yet, in which
+                            // case the frame being held is itself the problem:
+                            // it caught the selection overlay on its way off the
+                            // screen, and nothing will ever match it. A failed
+                            // join never advances the baseline, so without this
+                            // the capture sits on that one bad frame forever and
+                            // never grows.
+                            if stitcher.height() as usize == view {
+                                stitcher = Stitcher::new(&frame.image);
+                                continue;
+                            }
+                            on_progress(Progress {
+                                height: stitcher.height(),
+                                problem: Some(problem.message().to_string()),
+                            });
+                        }
                     }
                 }
 
@@ -163,5 +177,210 @@ impl Session {
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::capture::{Capture, MonitorInfo};
+    use std::sync::atomic::AtomicU32;
+
+    /// A screen that scrolls by itself, so the whole session can be exercised
+    /// without a display, a window manager or a person.
+    struct FakeScreen {
+        page: RgbaImage,
+        view: u32,
+        /// How far down the page the next grab will be taken from.
+        at: AtomicU32,
+        step: u32,
+        /// Spoil the first frame, as a window still fading off screen does.
+        spoil_first: bool,
+        grabs: AtomicU32,
+    }
+
+    impl ScreenCapture for FakeScreen {
+        fn list_monitors(&self) -> Result<Vec<MonitorInfo>> {
+            Ok(Vec::new())
+        }
+        fn capture_monitor(&self, _id: u32) -> Result<Capture> {
+            unimplemented!("not used by a scrolling capture")
+        }
+        fn capture_monitor_at(&self, _point: (f64, f64)) -> Result<Capture> {
+            unimplemented!("not used by a scrolling capture")
+        }
+        fn capture_region(&self, _region: LogicalRegion) -> Result<Capture> {
+            let n = self.grabs.fetch_add(1, Ordering::Relaxed);
+            let y = self.at.fetch_add(self.step, Ordering::Relaxed);
+            let y = y.min(self.page.height() - self.view);
+            let mut image =
+                image::imageops::crop_imm(&self.page, 0, y, self.page.width(), self.view)
+                    .to_image();
+            if self.spoil_first && n == 0 {
+                // Darkened, the way the selection overlay leaves the screen for
+                // a frame or two after it is told to close.
+                for pixel in image.pixels_mut() {
+                    pixel.0[0] /= 4;
+                    pixel.0[1] /= 4;
+                    pixel.0[2] /= 4;
+                }
+            }
+            Ok(Capture {
+                image,
+                scale_factor: 2.0,
+                origin: (10.0, 20.0),
+            })
+        }
+    }
+
+    fn page(height: u32) -> RgbaImage {
+        RgbaImage::from_fn(120, height, |x, y| {
+            let n = x.wrapping_mul(2_654_435_761) ^ y.wrapping_mul(40_503);
+            image::Rgba([(n >> 3) as u8, (n >> 11) as u8, (n >> 19) as u8, 255])
+        })
+    }
+
+    fn region() -> LogicalRegion {
+        LogicalRegion { x: 0.0, y: 0.0, width: 120.0, height: 300.0 }
+    }
+
+    /// The whole session: it grabs while the user scrolls, reports as it grows,
+    /// and hands back one tall image.
+    #[test]
+    fn collects_a_scrolling_page_and_reports_as_it_goes() {
+        let source = page(1500);
+        let screen = Arc::new(FakeScreen {
+            page: source.clone(),
+            view: 300,
+            at: AtomicU32::new(0),
+            step: 60,
+            spoil_first: false,
+            grabs: AtomicU32::new(0),
+        });
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let recorder = seen.clone();
+        let session = Session::start(screen, region(), move |progress| {
+            recorder.lock().unwrap().push(progress.height);
+        })
+        .expect("start");
+
+        // Long enough for several grabs at the session's own interval.
+        std::thread::sleep(INTERVAL * 12);
+        let joined = session.stop().expect("stop");
+
+        let reported = seen.lock().unwrap().clone();
+        assert!(!reported.is_empty(), "progress should have been reported");
+        assert!(
+            reported.windows(2).all(|w| w[1] > w[0]),
+            "progress should only ever grow, got {reported:?}"
+        );
+        assert!(
+            joined.height() > 300,
+            "should have collected more than one view, got {}",
+            joined.height()
+        );
+        assert_eq!(joined.width(), 120);
+
+        // And it is the page, not just something the right size.
+        let rows = joined.height() as usize;
+        assert_eq!(
+            joined.as_raw()[..],
+            source.as_raw()[..rows * 120 * 4],
+            "the collected image must be the page it was scrolled through"
+        );
+    }
+
+    /// The first frame can catch the selection overlay on its way off screen.
+    ///
+    /// Nothing afterwards matches it, and a failed join never advances the
+    /// baseline - so without recovering, the capture sits on that one bad frame
+    /// forever and never grows. That is what "it does not work" looked like.
+    #[test]
+    fn recovers_when_the_first_frame_caught_the_overlay() {
+        let source = page(1500);
+        let screen = Arc::new(FakeScreen {
+            page: source.clone(),
+            view: 300,
+            at: AtomicU32::new(0),
+            step: 60,
+            spoil_first: true,
+            grabs: AtomicU32::new(0),
+        });
+
+        let session = Session::start(screen, region(), |_| {}).expect("start");
+        std::thread::sleep(INTERVAL * 12);
+        let joined = session.stop().expect("stop");
+
+        assert!(
+            joined.height() > 300,
+            "the capture should have grown past its first frame, got {}",
+            joined.height()
+        );
+        // And the darkened frame is nowhere in the result.
+        let start = 60 * 120 * 4;
+        let rows = joined.height() as usize;
+        assert_eq!(
+            joined.as_raw()[..],
+            source.as_raw()[start..start + rows * 120 * 4],
+            "the result must be the page, not the darkened frame"
+        );
+    }
+
+    /// Stopping without scrolling is a legitimate short capture, not an error.
+    #[test]
+    fn a_still_screen_gives_back_the_one_view() {
+        let screen = Arc::new(FakeScreen {
+            page: page(300),
+            view: 300,
+            at: AtomicU32::new(0),
+            step: 0,
+            spoil_first: false,
+            grabs: AtomicU32::new(0),
+        });
+
+        let session = Session::start(screen, region(), |_| {}).expect("start");
+        std::thread::sleep(INTERVAL * 3);
+        let joined = session.stop().expect("stop");
+
+        assert_eq!(joined.height(), 300, "one view, captured once");
+    }
+
+    /// The scale factor and origin of the first grab describe the whole capture,
+    /// and are what the saved file is filed under.
+    #[test]
+    fn carries_the_geometry_of_what_it_captured() {
+        let screen = Arc::new(FakeScreen {
+            page: page(600),
+            view: 300,
+            at: AtomicU32::new(0),
+            step: 30,
+            spoil_first: false,
+            grabs: AtomicU32::new(0),
+        });
+
+        let session = Session::start(screen, region(), |_| {}).expect("start");
+        assert_eq!(session.scale_factor, 2.0);
+        assert_eq!(session.origin, (10.0, 20.0));
+        session.cancel();
+    }
+
+    /// Cancelling must stop the thread and keep nothing.
+    #[test]
+    fn cancelling_stops_the_thread() {
+        let screen = Arc::new(FakeScreen {
+            page: page(900),
+            view: 300,
+            at: AtomicU32::new(0),
+            step: 30,
+            spoil_first: false,
+            grabs: AtomicU32::new(0),
+        });
+
+        let session = Session::start(screen, region(), |_| {}).expect("start");
+        std::thread::sleep(INTERVAL * 2);
+        // Returning at all is the assertion: cancel joins the worker, so this
+        // hangs if the thread ignores the stop flag.
+        session.cancel();
     }
 }
