@@ -253,7 +253,11 @@ Paint makes you size a box either way; for a two-word caption on a screenshot
 that is work for nothing, and the two modes cost one optional field.
 
 Text can sit on an **opaque plate** - Paint's Opaque/Transparent - toggled from
-the toolbar and remembered for the next one, like colour and size. On a busy
+the toolbar and remembered for the next one, like colour and size. The toggle
+previews its own effect: the letter drawn in the current colour, with or without
+the plate behind it. It was an icon of a "T" first, which sat three buttons away
+from the Text tool's "T" and prompted "what is this?" - a symbol that has to be
+decoded is worse than a control that simply shows its result. On a busy
 screenshot it is the difference between a caption you can read and one lost in
 the picture.
 

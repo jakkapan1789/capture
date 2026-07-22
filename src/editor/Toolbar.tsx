@@ -13,7 +13,6 @@ import {
   ExpandIcon,
   MinusIcon,
   OcrIcon,
-  TextPlateIcon,
   MosaicIcon,
   PlusIcon,
   RedoIcon,
@@ -188,28 +187,31 @@ export default function Toolbar({
 
       {showFontSize && (
         <div className="btn-group">
-          {/* Paint's Opaque/Transparent. A pressed toggle rather than two
-              buttons: it is one setting with two states, and `aria-pressed`
-              says which without needing a label. */}
+          {/* Paint's Opaque/Transparent. The button previews its own effect -
+              the letter as it will be drawn, with or without the plate behind
+              it - because an icon of a "T" sat next to the Text tool's "T" and
+              said nothing about what it did. */}
           <button
             type="button"
-            className={textBackground ? "btn icon-only active" : "btn icon-only"}
+            className="btn text-plate-btn"
             aria-pressed={textBackground}
             onClick={() => onTextBackgroundChange(!textBackground)}
             title={
               textBackground
-                ? "Text background: on - click for transparent"
-                : "Text background: off - click for an opaque plate"
+                ? "Text sits on a solid background - click to make it transparent"
+                : "Text is transparent - click to put it on a solid background"
             }
-            aria-label="Opaque text background"
+            aria-label="Solid background behind text"
           >
-            <TextPlateIcon />
+            <span
+              className={textBackground ? "text-plate-preview on" : "text-plate-preview"}
+              style={{ color }}
+              aria-hidden="true"
+            >
+              T
+            </span>
           </button>
-        </div>
-      )}
 
-      {showFontSize && (
-        <div className="btn-group">
           <span className="btn-group-label">Size</span>
           <Select
             className="size-select"

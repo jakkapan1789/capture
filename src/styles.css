@@ -730,6 +730,33 @@ button {
   color: var(--muted);
 }
 
+/* The text-background toggle shows the letter as it will actually be drawn, so
+   the button reads as its own result rather than as a symbol to decode. */
+.text-plate-btn {
+  padding: 5px 9px;
+}
+
+.text-plate-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  /* Off: a dashed outline standing in for "no background", the same shorthand
+     the editing box uses. */
+  border: 1px dashed var(--line);
+  background: transparent;
+}
+
+.text-plate-preview.on {
+  border: 1px solid transparent;
+  background: #ffffff;
+}
+
 /* ---------- toggle switch ---------- */
 
 .toggle {
