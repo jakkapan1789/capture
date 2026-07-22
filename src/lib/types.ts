@@ -165,15 +165,6 @@ export type Annotation =
 
 export const ACCENT = "#ff3b30";
 
-/**
- * Colour of selection chrome.
- *
- * Deliberately not [`ACCENT`]: annotations default to red, and a red selection
- * box around a red arrow is almost invisible. Blue never collides with the
- * drawing itself.
- */
-export const SELECTION = "#3b82f6";
-
 /** Default text size, in logical pixels. */
 export const DEFAULT_FONT_SIZE = 16;
 

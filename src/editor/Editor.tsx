@@ -41,7 +41,6 @@ import {
   isSelectable,
   persistableAnnotations,
   rectsIntersect,
-  SELECTION,
   stepNumbers,
   type Annotation,
   type BlurAnnotation,
@@ -305,11 +304,8 @@ export default function Editor({
       .map((annotation) => layer.findOne(`#${annotation.id}`))
       .filter((node): node is Konva.Node => Boolean(node));
 
-    // Attach to everything selected, not just the resizable shapes. Text and
-    // step badges previously had no selection outline at all, and an arrow only
-    // grew endpoint handles - easy to miss against a busy screenshot.
     const resizable = selected.length === 1 && RESIZABLE.has(selected[0].type);
-    transformer.nodes(nodes);
+    transformer.nodes(selected.length > 1 || resizable ? nodes : []);
     transformer.resizeEnabled(resizable);
     transformer.getLayer()?.batchDraw();
   }, [selected, annotations, cropping, crop]);
@@ -1242,18 +1238,9 @@ export default function Editor({
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}
-                // No outline around a selected object - only the crop box keeps
-                // one, where the border *is* the thing being adjusted.
-                borderEnabled={cropping}
-                borderStroke="#ffffff"
-                borderStrokeWidth={2}
-                anchorStroke={cropping ? "#ffffff" : SELECTION}
-                anchorFill="#ffffff"
-                anchorSize={9}
-                anchorCornerRadius={2}
-                // Stand the outline off the shape so it reads as chrome rather
-                // than as part of the drawing.
-                padding={4 * unit}
+                borderStroke={cropping ? "#ffffff" : ACCENT}
+                anchorStroke={cropping ? "#ffffff" : ACCENT}
+                anchorSize={8}
                 ignoreStroke
                 boundBoxFunc={(oldBox, newBox) =>
                   newBox.width < 16 || newBox.height < 16 ? oldBox : newBox
