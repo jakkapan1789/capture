@@ -23,6 +23,10 @@ import {
 const FOR_SCROLLING =
   (window as unknown as { __CAPTURE_SCROLLING__?: boolean }).__CAPTURE_SCROLLING__ === true;
 
+/** Whether the app scrolls for you, rather than watching you scroll. */
+const AUTO_SCROLL =
+  (window as unknown as { __CAPTURE_AUTO_SCROLL__?: boolean }).__CAPTURE_AUTO_SCROLL__ !== false;
+
 /** Ignore stray clicks and accidental micro-drags. */
 const MIN_DRAG = 4;
 
@@ -93,7 +97,7 @@ export default function RegionOverlay() {
       // The same drag, selecting for a different kind of capture. Which one is
       // decided by the URL the overlay was opened with, so this window does not
       // need to know how it was reached.
-      if (FOR_SCROLLING) await startScrollCapture(region);
+      if (FOR_SCROLLING) await startScrollCapture(region, AUTO_SCROLL);
       else await captureRegion(region);
     } catch (error) {
       console.error("region capture failed", error);

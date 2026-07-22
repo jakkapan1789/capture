@@ -3,6 +3,7 @@ mod commands;
 mod hotkey;
 mod ocr;
 mod scroll;
+mod scroll_input;
 mod settings;
 mod stitch;
 mod storage;

@@ -29,6 +29,8 @@ const CAPTURE_CREATED: &str = "capture://created";
 const PERMISSION_DENIED: &str = "capture://permission-denied";
 /// Emitted as a scrolling capture grows, for the Stop panel.
 const SCROLL_PROGRESS: &str = "capture://scroll-progress";
+/// Emitted when macOS refuses to let us send scroll events.
+const SCROLL_INPUT_DENIED: &str = "capture://scroll-input-denied";
 
 /// How long to wait after hiding our own window before a full-screen grab.
 ///
@@ -521,6 +523,7 @@ pub async fn start_scroll_capture<R: Runtime>(
     app: AppHandle<R>,
     window: Window<R>,
     region: LogicalRegion,
+    auto: bool,
 ) -> Result<(), String> {
     permission::ensure()?;
     let virtual_region = to_virtual(&window, region)?;
@@ -536,14 +539,33 @@ pub async fn start_scroll_capture<R: Runtime>(
 
     tauri::async_runtime::spawn_blocking(move || {
         let progress_app = app.clone();
-        let session = crate::scroll::Session::start(
-            std::sync::Arc::from(crate::capture::create_capture()),
-            virtual_region,
-            move |progress| {
-                let _ = progress_app.emit_to(SCROLL_LABEL, SCROLL_PROGRESS, progress);
-            },
-        )
-        .map_err(|error| format!("{error:#}"))?;
+        let report = move |progress| {
+            let _ = progress_app.emit_to(SCROLL_LABEL, SCROLL_PROGRESS, progress);
+        };
+        let screen = std::sync::Arc::from(crate::capture::create_capture());
+
+        let session = if auto {
+            crate::scroll::Session::start_auto(
+                screen,
+                std::sync::Arc::from(crate::scroll_input::create_scroll_input()),
+                virtual_region,
+                report,
+            )
+        } else {
+            crate::scroll::Session::start(screen, virtual_region, report)
+        }
+        .map_err(|error| {
+            // Give the window back before surfacing a failure, or the app is
+            // simply gone from the screen with nothing to explain itself.
+            restore_main_window(&app);
+            let message = format!("{error:#}");
+            // macOS drops scroll events from an untrusted process without a
+            // word, so this is the only chance to say why nothing happened.
+            if message.contains(crate::scroll_input::NOT_PERMITTED) {
+                let _ = app.emit_to(MAIN_LABEL, SCROLL_INPUT_DENIED, ());
+            }
+            message
+        })?;
 
         *app.state::<AppState>()
             .scroll

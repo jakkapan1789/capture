@@ -342,7 +342,25 @@ is the number of thumbnails read and their size, not the width they are drawn at
 
 ## Scrolling capture
 
-The user scrolls and we watch. Nothing is sent to the window being captured - no
+The app scrolls the window for you and stops when the page runs out - one press,
+then wait. Manual mode, where the user scrolls and we only watch, is still there
+and is the fallback: it needs no permission at all, which matters when the target
+refuses synthetic input or is running elevated on Windows.
+
+**Automatic mode needs a second permission, and refusal is silent.** macOS lets
+an untrusted process post scroll events all day and simply discards them - there
+is no error to check. So the permission is tested before starting rather than
+inferred from nothing happening, because a denied capture would otherwise look
+exactly like a broken one. That failure has already been made here once, and the
+dialog names Accessibility specifically rather than saying something went wrong.
+
+**The end of the page is found, not guessed.** When several scrolls in a row add
+no new rows, there is nothing below. Several rather than one: a page still
+loading, or momentum that has not arrived, both look like the end for a moment.
+The panel then finishes by itself, since asking the user to confirm what they can
+already see is not a decision.
+
+The user scrolls and we watch, in manual mode. Nothing is sent to the window being captured - no
 synthetic scroll events - which is what keeps this off macOS's Accessibility
 permission and out of a fight with elevated windows on Windows. The cost is that
 the scrolling is manual, which the user was going to do anyway to find what they

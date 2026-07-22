@@ -19,7 +19,7 @@ const Editor = lazy(() => import("./editor/Editor"));
 import DeleteCapturesDialog from "./gallery/DeleteCapturesDialog";
 import GalleryStrip from "./gallery/GalleryStrip";
 import AboutDialog from "./about/AboutDialog";
-import PermissionDialog from "./PermissionDialog";
+import PermissionDialog, { type PermissionKind } from "./PermissionDialog";
 import CaptureActions from "./CaptureActions";
 import {
   CAPTURE_CREATED,
@@ -34,6 +34,7 @@ import {
   loadGalleryItem,
   openRegionOverlay,
   openScrollOverlay,
+  SCROLL_INPUT_DENIED_EVENT,
   captureFilePath,
   getSettings,
   readCaptureImage,
@@ -83,7 +84,7 @@ function CaptureApp() {
    * instead of a Back button that would open something the user never opened.
    */
   const [about, setAbout] = useState<null | "standalone" | "from-settings">(null);
-  const [permissionOpen, setPermissionOpen] = useState(false);
+  const [permission, setPermission] = useState<PermissionKind | null>(null);
   const [clipboard, setClipboard] = useState<ObjectClipboard>({
     annotations: [],
     images: new Map(),
@@ -184,7 +185,7 @@ function CaptureApp() {
   // The macOS app menu's About item is the standard entry point; Windows has no
   // menu bar here, which is why Settings also links to it.
   useEffect(() => {
-    const unlisten = listen(PERMISSION_DENIED, () => setPermissionOpen(true));
+    const unlisten = listen(PERMISSION_DENIED, () => setPermission("screen"));
     return () => {
       void unlisten.then((off) => off());
     };
@@ -200,7 +201,7 @@ function CaptureApp() {
   /** True when a failed capture was actually macOS refusing permission. */
   const handledPermission = useCallback((error: unknown) => {
     if (!String(error).includes(PERMISSION_DENIED_ERROR)) return false;
-    setPermissionOpen(true);
+    setPermission("screen");
     return true;
   }, []);
 
@@ -230,6 +231,15 @@ function CaptureApp() {
       if (!handledPermission(error)) flash(`Could not start a scrolling capture: ${error}`);
     }
   };
+
+  // Sending scroll events is a second permission, refused silently by macOS, so
+  // the backend says so explicitly rather than letting the capture sit there.
+  useEffect(() => {
+    const unlisten = listen(SCROLL_INPUT_DENIED_EVENT, () => setPermission("input"));
+    return () => {
+      void unlisten.then((off) => off());
+    };
+  }, []);
 
   const onDelete = useCallback(
     async (id: string) => {
@@ -428,7 +438,9 @@ function CaptureApp() {
         />
       )}
 
-      {permissionOpen && <PermissionDialog onClose={() => setPermissionOpen(false)} />}
+      {permission && (
+        <PermissionDialog kind={permission} onClose={() => setPermission(null)} />
+      )}
 
       {cleanUpOpen && (
         <DeleteCapturesDialog

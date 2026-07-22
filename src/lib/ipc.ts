@@ -115,8 +115,12 @@ export const SCROLL_PROGRESS = "capture://scroll-progress";
 export const openScrollOverlay = () => invoke<void>("open_scroll_overlay");
 
 /** `region` is in logical pixels relative to the calling window, as for capture. */
-export const startScrollCapture = (region: Region) =>
-  invoke<void>("start_scroll_capture", { region });
+/** `auto` drives the scrolling itself and stops at the end of the page. */
+export const startScrollCapture = (region: Region, auto: boolean) =>
+  invoke<void>("start_scroll_capture", { region, auto });
+
+/** Emitted when macOS has not granted permission to send scroll events. */
+export const SCROLL_INPUT_DENIED_EVENT = "capture://scroll-input-denied";
 
 export const stopScrollCapture = () => invoke<CaptureMeta>("stop_scroll_capture");
 export const cancelScrollCapture = () => invoke<void>("cancel_scroll_capture");

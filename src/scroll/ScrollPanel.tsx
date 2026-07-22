@@ -6,6 +6,8 @@ import { cancelScrollCapture, stopScrollCapture, SCROLL_PROGRESS } from "../lib/
 interface Progress {
   height: number;
   problem: string | null;
+  /** Set once an automatic capture has reached the end of the page. */
+  done: boolean;
 }
 
 /**
@@ -20,14 +22,24 @@ interface Progress {
  * growing there is nothing to say it is working.
  */
 export default function ScrollPanel() {
-  const [progress, setProgress] = useState<Progress>({ height: 0, problem: null });
+  const [progress, setProgress] = useState<Progress>({
+    height: 0,
+    problem: null,
+    done: false,
+  });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const unlisten = listen<Progress>(SCROLL_PROGRESS, (event) => setProgress(event.payload));
+    const unlisten = listen<Progress>(SCROLL_PROGRESS, (event) => {
+      setProgress(event.payload);
+      // An automatic capture ends itself. Making the user press Done after
+      // watching it finish would be asking them to confirm what they can see.
+      if (event.payload.done) void finish();
+    });
     return () => {
       void unlisten.then((off) => off());
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -55,9 +67,9 @@ export default function ScrollPanel() {
   return (
     <div className="scroll-panel">
       <div className="scroll-panel-text">
-        <strong>{progress.problem ?? "Scroll the window you want to capture"}</strong>
+        <strong>{progress.problem ?? (progress.done ? "Joining..." : "Capturing...")}</strong>
         <span className={progress.problem ? "warn" : undefined}>
-          {progress.height > 0 ? `${progress.height} px captured` : "Waiting for you to scroll..."}
+          {progress.height > 0 ? `${progress.height} px captured` : "Starting..."}
         </span>
       </div>
 
