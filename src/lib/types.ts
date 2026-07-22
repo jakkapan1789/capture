@@ -144,17 +144,6 @@ export const DEFAULT_FONT_SIZE = 16;
 
 export const FONT_SIZES = [12, 14, 16, 20, 24, 32, 48, 64];
 
-export const PALETTE = [
-  "#ff3b30",
-  "#ff9500",
-  "#ffcc00",
-  "#34c759",
-  "#3b82f6",
-  "#af52de",
-  "#ffffff",
-  "#111111",
-];
-
 /** Which field carries an annotation's colour, or null if it has none. */
 function colorField(annotation: Annotation): "stroke" | "fill" | null {
   switch (annotation.type) {

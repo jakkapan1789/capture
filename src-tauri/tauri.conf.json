@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Capture",
-        "width": 1180,
-        "height": 780,
+        "width": 720,
+        "height": 520,
         "minWidth": 720,
         "minHeight": 520
       }

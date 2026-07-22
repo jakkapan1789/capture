@@ -123,10 +123,7 @@ pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String>
     // then being told it was refused is a waste of the user's time. The hotkey
     // path has no dialog of its own, so surface it on the main window.
     if let Err(error) = permission::ensure() {
-        if let Some(main) = app.get_webview_window(MAIN_LABEL) {
-            let _ = main.show();
-            let _ = main.set_focus();
-        }
+        surface_main_window(app);
         let _ = app.emit_to(MAIN_LABEL, PERMISSION_DENIED, ());
         return Err(error);
     }
@@ -279,12 +276,26 @@ pub async fn capture_monitor<R: Runtime>(
 
     let result = state.capture.capture_monitor(monitor_id);
 
-    if let Some(main) = &main {
-        let _ = main.show();
+    if main.is_some() {
+        surface_main_window(&app);
     }
 
     let capture = to_string_err(result)?;
     finish_capture(&app, capture)
+}
+
+/// Bring the main window to the front, whatever state it was left in.
+///
+/// A capture usually happens while another application is focused - especially
+/// from the global hotkey - so `show()` alone is not enough: the window may also
+/// be minimised, and showing a minimised window leaves it minimised.
+fn surface_main_window<R: Runtime>(app: &AppHandle<R>) {
+    let Some(main) = app.get_webview_window(MAIN_LABEL) else {
+        return;
+    };
+    let _ = main.unminimize();
+    let _ = main.show();
+    let _ = main.set_focus();
 }
 
 /// Save a fresh capture, surface the main window, and announce it.
@@ -300,10 +311,7 @@ fn finish_capture<R: Runtime>(
         capture.origin,
     ))?;
 
-    if let Some(main) = app.get_webview_window(MAIN_LABEL) {
-        let _ = main.show();
-        let _ = main.set_focus();
-    }
+    surface_main_window(app);
 
     let _ = app.emit_to(MAIN_LABEL, CAPTURE_CREATED, &meta);
     Ok(meta)

@@ -20,7 +20,7 @@ import {
   TrashIcon,
   UndoIcon,
 } from "../lib/icons";
-import { FONT_SIZES, PALETTE, type Annotation, type Tool } from "../lib/types";
+import { FONT_SIZES, type Annotation, type Tool } from "../lib/types";
 
 const TOOLS: {
   tool: Tool;
@@ -151,23 +151,22 @@ export default function Toolbar({
 
       {showColor && (
         <div className="btn-group">
-          {PALETTE.map((swatch) => (
-            <button
-              key={swatch}
-              type="button"
-              className={swatch === color ? "swatch active" : "swatch"}
-              style={{ background: swatch }}
-              onClick={() => onColorChange(swatch)}
-              title={swatch}
-              aria-label={`Colour ${swatch}`}
-            />
-          ))}
-          {/* Native picker for anything not on the palette. */}
-          <label className="swatch custom" title="Custom colour">
+          {/* Two controls, not a row of presets: what the colour is now, and a
+              way to change it. The OS picker already offers a palette, recent
+              colours and an eyedropper, so duplicating a handful of swatches in
+              the toolbar only spent space. */}
+          <span
+            className="color-current"
+            style={{ background: color }}
+            title={`Current colour ${color}`}
+            aria-hidden="true"
+          />
+          <label className="color-pick" title="Choose a colour">
             <input
               type="color"
               value={color}
               onChange={(event) => onColorChange(event.target.value)}
+              aria-label="Choose a colour"
             />
           </label>
         </div>
