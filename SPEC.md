@@ -311,7 +311,9 @@ that, then the full image.
 browser rather than reasoned about. It is not the default state: with nothing
 selected the row needs 575px; selecting a text object adds the colour well and
 the size picker for 834px; a step badge selected while a crop is active adds
-Delete *and* Reset crop, the widest state at 919px.
+Reset crop, which was the widest state at 919px when a Delete button was still in
+the row. Removing it only made that state narrower, so the measured floor still
+holds with room to spare - but re-measure before lowering it further.
 
 The row scrolls sideways by design, so exceeding it is not a failure - but the
 pinned capture group starts getting clipped rather than staying pinned once the

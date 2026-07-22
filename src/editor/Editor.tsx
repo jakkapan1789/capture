@@ -1200,7 +1200,6 @@ export default function Editor({
         onToolChange={setTool}
         disabledTools={canReadText ? undefined : ["ocr"]}
         selected={single}
-        selectionCount={selected.length}
         hasCrop={Boolean(crop)}
         canUndo={canUndo}
         canRedo={canRedo}
@@ -1212,7 +1211,6 @@ export default function Editor({
         showFontSize={showFontSize}
         fontSize={activeFontSize}
         onFontSizeChange={applyFontSize}
-        onDelete={() => remove(selectedIds)}
         onResetCrop={() => crop && remove([crop.id])}
         onReorderStep={(delta) => single && reorderStep(single.id, delta)}
         onToggleBlurMode={() =>

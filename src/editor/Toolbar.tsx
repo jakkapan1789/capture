@@ -19,7 +19,6 @@ import {
   SelectIcon,
   StepIcon,
   TextIcon,
-  TrashIcon,
   UndoIcon,
 } from "../lib/icons";
 import { FONT_SIZES, type Annotation, type Tool } from "../lib/types";
@@ -49,7 +48,6 @@ interface Props {
   onToolChange: (tool: Tool) => void;
   /** The selected annotation when exactly one is selected, else null. */
   selected: Annotation | null;
-  selectionCount: number;
   hasCrop: boolean;
   canUndo: boolean;
   canRedo: boolean;
@@ -61,7 +59,6 @@ interface Props {
   showFontSize: boolean;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
-  onDelete: () => void;
   onResetCrop: () => void;
   onReorderStep: (delta: -1 | 1) => void;
   onToggleBlurMode: () => void;
@@ -75,7 +72,6 @@ export default function Toolbar({
   disabledTools,
   onToolChange,
   selected,
-  selectionCount,
   hasCrop,
   canUndo,
   canRedo,
@@ -87,7 +83,6 @@ export default function Toolbar({
   showFontSize,
   fontSize,
   onFontSizeChange,
-  onDelete,
   onResetCrop,
   onReorderStep,
   onToggleBlurMode,
@@ -230,28 +225,6 @@ export default function Toolbar({
           >
             {selected.mode === "blur" ? <DropletIcon /> : <MosaicIcon />}
             <span>{selected.mode === "blur" ? "Blur" : "Pixelate"}</span>
-          </button>
-        </div>
-      )}
-
-      {selectionCount > 0 && (
-        <div className="btn-group">
-          {/* Icon-only, so the count that used to be in the label lives in the
-              tooltip and the accessible name instead of being lost. */}
-          <button
-            type="button"
-            className="btn danger icon-only"
-            onClick={onDelete}
-            title={
-              selectionCount > 1
-                ? `Delete ${selectionCount} objects (Del)`
-                : "Delete (Del)"
-            }
-            aria-label={
-              selectionCount > 1 ? `Delete ${selectionCount} objects` : "Delete"
-            }
-          >
-            <TrashIcon />
           </button>
         </div>
       )}
