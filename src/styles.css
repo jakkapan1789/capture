@@ -1027,20 +1027,34 @@ button {
   opacity: 0.72;
 }
 
+/* The text being typed, overlaid exactly where it will be drawn.
+   It shows the annotation as it will actually look: same font, same weight,
+   same colour, on the picture itself. The old version painted a dark slab
+   behind it, which hid the very thing you are positioning the text against. */
 .text-editor {
   position: absolute;
   margin: 0;
   padding: 0;
-  border: 1px dashed var(--accent);
-  background: rgba(0, 0, 0, 0.55);
-  font-family: inherit;
+  border: none;
+  background: transparent;
   font-weight: 700;
-  line-height: 1.2;
   resize: none;
-  outline: none;
   overflow: hidden;
-  min-width: 120px;
+  white-space: pre;
   user-select: text;
+
+  /* The edit boundary is a ring set slightly away from the glyphs, rather than
+     a border tight against them: it marks the region without crowding the text
+     or covering any of the picture. The dark halo keeps it visible on a light
+     screenshot, where a thin red line alone would disappear. */
+  outline: 1.5px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 1px;
+  box-shadow: 0 0 0 4.5px rgba(0, 0, 0, 0.22);
+}
+
+.text-editor::selection {
+  background: rgba(255, 59, 48, 0.28);
 }
 
 /* ---------- gallery ---------- */

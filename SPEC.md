@@ -227,6 +227,33 @@ deliberate work and is left alone.
 
 Both are one mutation, so undo brings the pair back together.
 
+## Typing text is the same text
+
+Konva has no text input, so editing happens in a real `<textarea>` overlaid on
+the canvas. That only works if the two agree about what the text looks like, and
+they did not: Konva's `Text` defaults to **Arial** while the textarea inherited
+the UI font, so a word visibly changed shape and width the moment it was
+committed. `ANNOTATION_FONT` and `ANNOTATION_LINE_HEIGHT` are named once and used
+by both. A test pins it - the committed node's client rect has to match the box
+that was typed into, within a few pixels.
+
+The box is sized to its contents on every keystroke. A textarea has no intrinsic
+sizing, so left alone it draws a fixed rectangle whatever is in it; collapsing it
+to zero first is what makes `scrollWidth`/`scrollHeight` report the content, so
+it shrinks as well as grows.
+
+It also draws **on** the picture rather than over it. The old version painted a
+55%-black slab behind the text, which hid the very thing the text is being
+positioned against, and put a red placeholder on grey. Now the annotation appears
+exactly as it will look, and the edit region is marked by a ring set slightly off
+the glyphs - with a dark halo, because a thin red line alone vanishes on a light
+screenshot.
+
+Two smaller things follow from watching it be used: the placeholder is selected
+on open, so the first keystroke replaces "Text" instead of appending to it, and
+emptying the box cancels rather than restoring the placeholder - deleting the
+word and clicking away used to leave "Text" on the picture.
+
 ## Selection follows the tool
 
 Switching tools clears the selection. Picking up the arrow tool while a box was

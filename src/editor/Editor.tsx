@@ -48,6 +48,8 @@ import {
 } from "../lib/ipc";
 import {
   ACCENT,
+  ANNOTATION_FONT,
+  ANNOTATION_LINE_HEIGHT,
   colorOf,
   colorPatch,
   createId,
@@ -1191,6 +1193,22 @@ export default function Editor({
     }
   };
 
+  /**
+   * Size the text box to exactly what it contains.
+   *
+   * A textarea has no intrinsic sizing, so left alone it draws a fixed default
+   * rectangle whatever is typed into it. Collapsing it first is what makes
+   * `scrollWidth`/`scrollHeight` report the content rather than the box that was
+   * already there, so it shrinks as well as grows.
+   */
+  const fitTextEditor = (node: HTMLTextAreaElement) => {
+    node.style.width = "0px";
+    // A little slack, or the caret sits on the boundary and scrolls the box.
+    node.style.width = `${node.scrollWidth + 2}px`;
+    node.style.height = "0px";
+    node.style.height = `${node.scrollHeight}px`;
+  };
+
   /* ---------- export ---------- */
 
   /**
@@ -1419,6 +1437,8 @@ export default function Editor({
                         // Stored in logical pixels; scaled here so the same
                         // number looks identical on any capture's DPI.
                         fontSize={annotation.fontSize * unit}
+                        fontFamily={ANNOTATION_FONT}
+                        lineHeight={ANNOTATION_LINE_HEIGHT}
                         fontStyle="bold"
                         fill={annotation.fill}
                         draggable={draggableNow}
@@ -1654,17 +1674,38 @@ export default function Editor({
               Konva has no text input of its own. */}
           {editing?.type === "text" && (
             <textarea
+              key={editing.id}
               className="text-editor"
               autoFocus
               defaultValue={editing.text}
+              // No wrapping: the box grows with what is typed instead of
+              // choosing a width for you, which is what made a short word sit in
+              // a wide grey slab.
+              wrap="off"
+              spellCheck={false}
               style={{
                 left: (editing.x - viewport.x) * fitScale,
                 top: (editing.y - viewport.y) * fitScale,
                 fontSize: editing.fontSize * unit * fitScale,
+                fontFamily: ANNOTATION_FONT,
+                lineHeight: ANNOTATION_LINE_HEIGHT,
                 color: editing.fill,
+                caretColor: editing.fill,
               }}
+              ref={(node) => {
+                if (!node) return;
+                fitTextEditor(node);
+                // Placed text starts as the word "Text"; selecting it means the
+                // first keystroke replaces it rather than appending to it.
+                node.select();
+              }}
+              onInput={(event) => fitTextEditor(event.currentTarget)}
               onBlur={(event) => {
-                update(editing.id, { text: event.target.value || "Text" });
+                const text = event.target.value.trim();
+                // Emptying the box cancels: falling back to the placeholder left
+                // the word "Text" on the picture after you had deleted it.
+                if (text) update(editing.id, { text: event.target.value });
+                else remove([editing.id]);
                 setEditingId(null);
               }}
               onKeyDown={(event) => {

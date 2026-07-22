@@ -211,6 +211,21 @@ export type Annotation =
 
 export const ACCENT = "#ff3b30";
 
+/**
+ * Font for text annotations.
+ *
+ * Named once because it has to be identical in two places that measure text
+ * independently: Konva draws the committed annotation on a canvas, and a real
+ * `<textarea>` shows it while it is being typed. Konva's own default is Arial,
+ * while the textarea was inheriting the UI font - so the words visibly changed
+ * shape and width the moment you finished editing them.
+ */
+export const ANNOTATION_FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+/** Line height, again shared so a second line lands in the same place in both. */
+export const ANNOTATION_LINE_HEIGHT = 1.25;
+
 /** Default text size, in logical pixels. */
 export const DEFAULT_FONT_SIZE = 16;
 
