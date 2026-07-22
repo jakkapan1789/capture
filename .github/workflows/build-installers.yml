@@ -1,0 +1,65 @@
+name: Build installers
+
+# Run this by hand from the Actions tab to get an installer for any commit,
+# without tagging a release. Meant for testing a fix - the files land as build
+# artifacts, not as something users can download.
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Which installers to build
+        type: choice
+        default: windows
+        options:
+          - windows
+          - macos
+          - both
+
+jobs:
+  windows:
+    if: ${{ inputs.platform == 'windows' || inputs.platform == 'both' }}
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build
+        run: npm run tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capture-windows-${{ github.sha }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  macos:
+    if: ${{ inputs.platform == 'macos' || inputs.platform == 'both' }}
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build
+        run: npm run tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capture-macos-${{ github.sha }}
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
