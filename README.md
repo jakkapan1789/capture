@@ -38,13 +38,21 @@ See [SPEC.md](SPEC.md) for the architecture and the parts most likely to break.
 
 ```sh
 npm install
-npm run tauri dev
+npm run tauri dev     # fast iteration, but see the note below
+npm run dev:app       # build and run a real .app - needed for screen capture
 ```
 
 macOS needs **Screen Recording** permission (System Settings → Privacy &
 Security → Screen & System Audio Recording). Without it macOS returns the desktop
 wallpaper with every window missing, rather than an error — the app detects this
 and offers a link to the right settings pane.
+
+**`tauri dev` cannot hold that permission.** It runs the bare binary from
+`target/debug`, which has no `Info.plist` and is linker-signed with a hash of its
+own contents, so macOS has nothing stable to attach the grant to: the app never
+appears in the permission list, and whatever access it has is inherited from the
+terminal that launched it. Use `npm run dev:app`, which bundles the app *and*
+re-signs it with a stable identifier so the grant survives rebuilds.
 
 Permission is granted per binary, so a debug build, a release build and the test
 harness each need it separately.

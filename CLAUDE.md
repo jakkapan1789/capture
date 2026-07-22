@@ -11,7 +11,8 @@ commands and the conventions that live outside it.
 
 ```sh
 npm install
-npm run tauri dev              # full app (Rust + webview)
+npm run tauri dev              # full app, but cannot hold Screen Recording - see below
+npm run dev:app                # bundles + stably signs a real .app, then launches it
 npm run dev                    # frontend only, no backend - IPC calls will fail
 
 npx tsc --noEmit               # frontend typecheck
@@ -31,6 +32,12 @@ The `--ignored` tests need a desktop session and macOS **Screen Recording**
 permission. Permission is granted **per binary**, so a debug build, a release
 build and the test harness each need granting separately. Without it macOS
 returns the desktop wallpaper with every window missing rather than an error.
+
+Anything that captures the screen must be run through `npm run dev:app`, not
+`tauri dev`. The bare binary has no `Info.plist` and is linker-signed with a hash
+of its own contents, so it never appears in the permission list and its identity
+changes every build; the script bundles it and re-signs it with the identifier
+from `tauri.conf.json` so the grant sticks.
 
 ## The split that defines the codebase
 
