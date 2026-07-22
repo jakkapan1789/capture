@@ -144,6 +144,21 @@ export type ImageSource =
       captureId?: string;
       crop: Rect;
     }
+  | {
+      /**
+       * A flattened snapshot, stored as its own PNG beside the capture.
+       *
+       * Cut takes the picture *as it looks* - screenshot plus whatever
+       * annotations were over it - which is what Paint does and what makes the
+       * tool useful once a capture has been marked up. That cannot be expressed
+       * as a rectangle into the original, so these pixels are the one thing in
+       * the app that is genuinely flattened before export. Everything the piece
+       * was cut from is still an editable object underneath it.
+       */
+      kind: "piece";
+      captureId: string;
+      pieceId: string;
+    }
   | { kind: "external" };
 
 /**
@@ -232,6 +247,21 @@ export function stepNumbers(annotations: Annotation[]): Map<string, number> {
 /** True for objects whose pixels exist only in memory for this session. */
 export function isSessionOnly(annotation: Annotation): boolean {
   return annotation.type === "image" && annotation.source.kind === "external";
+}
+
+/**
+ * Ids of the cut-out pixel files these annotations still refer to.
+ *
+ * Sent with every save so the backend can delete the rest: undo, delete and
+ * plain overwriting all orphan a piece file, and only the frontend knows which
+ * ones are still live.
+ */
+export function livePieceIds(annotations: Annotation[]): string[] {
+  return annotations.flatMap((annotation) =>
+    annotation.type === "image" && annotation.source.kind === "piece"
+      ? [annotation.source.pieceId]
+      : [],
+  );
 }
 
 /**

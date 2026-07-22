@@ -152,6 +152,37 @@ grabbing again. The race is removed instead of out-waited, and the selection now
 shows the screen as it was when you started, which is also what every other
 capture tool does.
 
+## Cut flattens, on purpose
+
+Every other annotation stays an object until export. A cut-out cannot: cutting a
+marked-up screenshot and getting bare pixels back is not what the tool appears
+to do, so a cut rasterises the region *as it looks* - screenshot plus whatever
+was drawn over it.
+
+That makes a piece the only thing in the app whose pixels cannot be re-derived
+from the capture PNG, which decides where it lives. Not in the annotation JSON:
+that file is rewritten on every autosave and read for every gallery listing, so
+a few hundred KB of base64 would be paid for on both paths. It goes in a sibling
+`<id>.piece-<pid>.png` instead.
+
+Two consequences have to be handled explicitly:
+
+**Orphaned files.** Undo, delete and overwrite all leave a piece file with
+nothing pointing at it, and Rust cannot tell - it knows nothing about the
+annotation model. So every save states which piece ids are still live and
+`prune_pieces` removes the rest. Deleting a capture takes its pieces with it.
+
+**Pieces pasted into another capture.** The file belongs to the capture it was
+cut from, which is free to prune it. So pasting a piece elsewhere re-homes it:
+the pixels travel on the clipboard and are written as a new file under the
+receiving capture. Sharing the original would break the copy as soon as the
+source capture dropped its own.
+
+Rasterising uses the same two precautions as `exportBlob`: hide the overlay
+layer, and clear the selection through `flushSync` first - an arrow's endpoint
+handles are drawn on the *content* layer and would otherwise be cut into the
+piece.
+
 ## Where capture time actually goes
 
 Saving a capture is one PNG encode of a full-resolution frame. A first pass at

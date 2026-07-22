@@ -60,6 +60,8 @@ pub fn run() {
             commands::read_capture_image,
             commands::read_capture_thumbnail,
             commands::save_annotations,
+            commands::save_capture_piece,
+            commands::read_capture_piece,
             commands::list_gallery,
             commands::load_gallery_item,
             commands::delete_gallery_item,

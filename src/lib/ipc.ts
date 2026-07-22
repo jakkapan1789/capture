@@ -1,7 +1,7 @@
 /** Typed wrappers around the Rust commands. The only place `invoke` is called. */
 
 import { invoke } from "@tauri-apps/api/core";
-import type { Annotation } from "./types";
+import { livePieceIds, type Annotation } from "./types";
 
 export interface CaptureMeta {
   id: string;
@@ -98,7 +98,21 @@ export const deleteGalleryItems = (ids: string[]) =>
   invoke<number>("delete_gallery_items", { ids });
 
 export const saveAnnotations = (id: string, annotations: Annotation[]) =>
-  invoke<void>("save_annotations", { id, annotations });
+  invoke<void>("save_annotations", {
+    id,
+    annotations,
+    // Anything not named here is deleted, so this must be derived from the same
+    // list being written - never from a stale copy.
+    pieces: livePieceIds(annotations),
+  });
+
+/** Store a cut-out's flattened pixels beside its capture. */
+export const saveCapturePiece = async (id: string, pieceId: string, png: Blob) =>
+  invoke<void>("save_capture_piece", {
+    id,
+    pieceId,
+    png: Array.from(new Uint8Array(await png.arrayBuffer())),
+  });
 
 /**
  * These commands return raw bytes via `tauri::ipc::Response`, which arrives as an
@@ -115,3 +129,9 @@ export const readCaptureImage = (id: string) =>
   readBytes("read_capture_image", id);
 export const readCaptureThumbnail = (id: string) =>
   readBytes("read_capture_thumbnail", id);
+
+export async function readCapturePiece(id: string, pieceId: string): Promise<Blob> {
+  const data = await invoke<ArrayBuffer | number[]>("read_capture_piece", { id, pieceId });
+  const bytes = data instanceof ArrayBuffer ? data : new Uint8Array(data);
+  return new Blob([bytes], { type: "image/png" });
+}

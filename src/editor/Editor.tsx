@@ -31,11 +31,18 @@ import {
   loadImageFromBlob,
   placeInViewport,
   readClipboardImage,
+  toPngBlob,
   type PastedImage,
 } from "../lib/images";
 import type { ObjectClipboard } from "../App";
 import ContextMenu from "../components/ContextMenu";
-import { readCaptureImage, saveAnnotations, type CaptureMeta } from "../lib/ipc";
+import {
+  readCaptureImage,
+  readCapturePiece,
+  saveAnnotations,
+  saveCapturePiece,
+  type CaptureMeta,
+} from "../lib/ipc";
 import {
   ACCENT,
   colorOf,
@@ -188,6 +195,16 @@ export default function Editor({
     () => new Map(),
   );
   const loadingSources = useRef(new Set<string>());
+  /**
+   * Pixels for cut-out pieces, keyed by piece id.
+   *
+   * A piece cut in this session holds the canvas it was rasterised into; one
+   * reopened from disk holds an image element. Konva draws either.
+   */
+  const [pieceImages, setPieceImages] = useState<Map<string, CanvasImageSource>>(
+    () => new Map(),
+  );
+  const loadingPieces = useRef(new Set<string>());
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -396,6 +413,86 @@ export default function Editor({
     };
   }, [annotations, meta.id, sourceImages]);
 
+  // Fetch the pixels of any cut-out piece, once each. A piece cut in this
+  // session is already in the map, so this only runs for a reopened capture.
+  useEffect(() => {
+    const wanted = new Map<string, string>();
+    for (const annotation of annotations) {
+      if (annotation.type !== "image" || annotation.source.kind !== "piece") continue;
+      const { pieceId, captureId } = annotation.source;
+      if (!pieceImages.has(pieceId) && !loadingPieces.current.has(pieceId)) {
+        wanted.set(pieceId, captureId);
+      }
+    }
+    if (wanted.size === 0) return;
+
+    for (const pieceId of wanted.keys()) loadingPieces.current.add(pieceId);
+    let cancelled = false;
+
+    void (async () => {
+      for (const [pieceId, captureId] of wanted) {
+        try {
+          const image = await loadImageFromBlob(await readCapturePiece(captureId, pieceId));
+          if (cancelled) return;
+          setPieceImages((previous) => new Map(previous).set(pieceId, image));
+        } catch (error) {
+          // The file may be gone - a capture deleted from under a copy of its
+          // piece. ImageObject renders nothing rather than throwing.
+          console.error("could not load cut-out", pieceId, error);
+        } finally {
+          loadingPieces.current.delete(pieceId);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [annotations, pieceImages]);
+
+  /**
+   * Flatten a rectangle of the picture exactly as it currently looks.
+   *
+   * Cut has to take the annotations with it - cutting a marked-up screenshot and
+   * getting bare pixels back is not what the tool appears to do. That means a
+   * genuine rasterisation, so the same two precautions as `exportBlob` apply:
+   * the overlay layer is hidden, and the selection is cleared through
+   * `flushSync` because an arrow's endpoint handles live on the content layer
+   * and would otherwise be baked into the piece.
+   */
+  const rasterizeRegion = useCallback(
+    (bounds: RectBounds): HTMLCanvasElement | null => {
+      const stage = stageRef.current;
+      if (!stage) return null;
+
+      const overlay = overlayLayerRef.current;
+      const previousSelection = selectedIds;
+      flushSync(() => setSelectedIds([]));
+      overlay?.hide();
+
+      try {
+        // Read the scale off the stage for the same reason `exportBlob` does:
+        // it is what was actually rendered, whatever the state says.
+        const scale = stage.scaleX() || 1;
+        return stage.toCanvas({
+          // Konva wants absolute stage coordinates; annotations are in image
+          // coordinates, which the viewport offset sits between.
+          x: (bounds.x - viewport.x) * scale,
+          y: (bounds.y - viewport.y) * scale,
+          width: bounds.width * scale,
+          height: bounds.height * scale,
+          // Undo the fit-to-window scale so the piece is cut at the capture's
+          // native resolution rather than at screen resolution.
+          pixelRatio: 1 / scale,
+        });
+      } finally {
+        overlay?.show();
+        setSelectedIds(previousSelection);
+      }
+    },
+    [selectedIds, setSelectedIds, viewport.x, viewport.y],
+  );
+
   /* ---------- object clipboard ---------- */
 
 
@@ -410,7 +507,14 @@ export default function Editor({
       // otherwise pasting them into another capture yields empty frames.
       const images = new Map<string, CanvasImageSource>();
       for (const item of items) {
-        const pixels = externalImages.get(item.id);
+        // A cut-out's pixels travel too. Pasted into another capture it needs a
+        // file of its own there, and this editor is unmounted the moment the
+        // capture changes - so the pixels have to be taken along now.
+        const pixels =
+          externalImages.get(item.id) ??
+          (item.type === "image" && item.source.kind === "piece"
+            ? pieceImages.get(item.source.pieceId)
+            : undefined);
         if (pixels) images.set(item.id, pixels);
       }
 
@@ -428,7 +532,7 @@ export default function Editor({
       onClipboardChange({ annotations: copies, images });
       onNotify(items.length > 1 ? `Copied ${items.length} objects` : "Copied");
     },
-    [annotations, externalImages, meta.id, onClipboardChange, onNotify],
+    [annotations, externalImages, pieceImages, meta.id, onClipboardChange, onNotify],
   );
 
   /**
@@ -448,6 +552,10 @@ export default function Editor({
 
       const copies: Annotation[] = [];
       const extraImages = new Map<string, CanvasImageSource>();
+      const newPieces = new Map<
+        string,
+        { pixels: CanvasImageSource; width: number; height: number }
+      >();
 
       for (const item of items) {
         const copy = { ...structuredClone(item), id: createId(), x: item.x + dx, y: item.y + dy };
@@ -457,17 +565,49 @@ export default function Editor({
           const pixels = clipboard.images.get(item.id);
           if (pixels) extraImages.set(copy.id, pixels);
         }
+
+        // A cut-out pasted into a different capture is re-homed: it gets its
+        // own piece file here. Sharing the original would leave it pointing at
+        // a file the *other* capture is free to prune the moment its own copy
+        // is undone or deleted.
+        if (
+          copy.type === "image" &&
+          copy.source.kind === "piece" &&
+          copy.source.captureId !== meta.id
+        ) {
+          const pixels = clipboard.images.get(item.id);
+          if (pixels) {
+            const pieceId = createId();
+            copy.source = { kind: "piece", captureId: meta.id, pieceId };
+            newPieces.set(pieceId, { pixels, width: copy.width, height: copy.height });
+          }
+          // Without pixels the original reference is kept: it still draws for as
+          // long as that file is there, which beats rendering nothing.
+        }
         copies.push(copy as Annotation);
       }
 
       if (extraImages.size > 0) {
         setExternalImages((previous) => new Map([...previous, ...extraImages]));
       }
+
+      if (newPieces.size > 0) {
+        setPieceImages((previous) => {
+          const next = new Map(previous);
+          for (const [pieceId, piece] of newPieces) next.set(pieceId, piece.pixels);
+          return next;
+        });
+        for (const [pieceId, piece] of newPieces) {
+          void toPngBlob(piece.pixels, piece.width, piece.height)
+            .then((blob) => blob && saveCapturePiece(meta.id, pieceId, blob))
+            .catch((error) => console.error("could not store pasted cut-out", error));
+        }
+      }
       replaceAll([...annotations, ...copies]);
       setSelectedIds(copies.map((copy) => copy.id));
       return true;
     },
-    [annotations, clipboard, replaceAll, setSelectedIds, unit],
+    [annotations, clipboard, meta.id, replaceAll, setSelectedIds, unit],
   );
 
   /**
@@ -725,6 +865,25 @@ export default function Editor({
         // the hole is appended first so it sits underneath the piece.
         const holeId = createId();
         const pieceId = createId();
+
+        // Snapshot *before* the hole and the piece are added, or the cut would
+        // contain the white rectangle it is about to leave behind.
+        const canvas = rasterizeRegion(bounds);
+        if (!canvas) return;
+
+        // The canvas is a valid image source in its own right, so the piece
+        // draws immediately - no encode, no round trip, no flicker.
+        setPieceImages((previous) => new Map(previous).set(pieceId, canvas));
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          void saveCapturePiece(meta.id, pieceId, blob).catch((error) => {
+            // The piece still works for this session; it just will not come
+            // back after a reopen, which the user should know about.
+            console.error("could not store cut-out", error);
+            onNotify("Cut-out could not be saved - it will be lost on reopen");
+          });
+        }, "image/png");
+
         replaceAll([
           ...annotations,
           { id: holeId, type: "fill", ...bounds, fill: "#ffffff" },
@@ -732,7 +891,7 @@ export default function Editor({
             id: pieceId,
             type: "image",
             ...bounds,
-            source: { kind: "capture", captureId: meta.id, crop: bounds },
+            source: { kind: "piece", captureId: meta.id, pieceId },
           },
         ]);
         setSelectedIds([pieceId]);
@@ -1170,6 +1329,11 @@ export default function Editor({
                           annotation.source.captureId &&
                           annotation.source.captureId !== meta.id
                             ? sourceImages.get(annotation.source.captureId)
+                            : undefined
+                        }
+                        pieceImage={
+                          annotation.source.kind === "piece"
+                            ? pieceImages.get(annotation.source.pieceId)
                             : undefined
                         }
                         externalImage={externalImages.get(annotation.id)}

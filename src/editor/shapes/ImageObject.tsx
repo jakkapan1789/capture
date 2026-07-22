@@ -10,6 +10,9 @@ import type { ImageAnnotation } from "../../lib/types";
  *   Costs nothing to store because it is only coordinates, and it survives a
  *   reload. Usually the open capture; when it points at another one, the parent
  *   loads that image and passes it as `sourceImage`.
+ * - `piece` — a cut-out that was flattened at the moment of the cut, so it
+ *   carries the annotations that were over it. Its pixels are a PNG stored
+ *   beside the capture; the parent loads them and passes them as `pieceImage`.
  * - `external` — pasted from the clipboard or another capture. Its pixels live in
  *   memory for this session only.
  */
@@ -19,6 +22,8 @@ interface Props {
   captureImage: HTMLImageElement;
   /** The *other* capture's image, when this piece was cut from a different one. */
   sourceImage?: HTMLImageElement;
+  /** Flattened pixels for a `piece`, once read back from disk. */
+  pieceImage?: CanvasImageSource;
   /** Resolved pixels for `external` pastes, if still in memory. */
   externalImage?: CanvasImageSource;
   draggable: boolean;
@@ -29,6 +34,7 @@ export default function ImageObject({
   annotation,
   captureImage,
   sourceImage,
+  pieceImage,
   externalImage,
   draggable,
   onChange,
@@ -37,7 +43,11 @@ export default function ImageObject({
   // A cut-out from another capture must draw that capture's pixels, not the
   // ones underneath it here.
   const image =
-    source.kind === "capture" ? (sourceImage ?? captureImage) : externalImage;
+    source.kind === "capture"
+      ? (sourceImage ?? captureImage)
+      : source.kind === "piece"
+        ? pieceImage
+        : externalImage;
 
   // A pasted image whose session ended leaves nothing to draw. Render nothing
   // rather than letting Konva throw on an undefined source.

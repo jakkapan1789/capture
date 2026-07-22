@@ -339,14 +339,43 @@ pub fn read_capture_thumbnail<R: Runtime>(
     to_string_err(storage::read_thumb(&dir, &id)).map(tauri::ipc::Response::new)
 }
 
+/// Persist a cut-out's flattened pixels next to its capture.
+#[tauri::command]
+pub fn save_capture_piece<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    piece_id: String,
+    png: Vec<u8>,
+) -> Result<(), String> {
+    let dir = gallery_dir(&app)?;
+    to_string_err(storage::write_piece(&dir, &id, &piece_id, &png))
+}
+
+#[tauri::command]
+pub fn read_capture_piece<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    piece_id: String,
+) -> Result<tauri::ipc::Response, String> {
+    let dir = gallery_dir(&app)?;
+    to_string_err(storage::read_piece(&dir, &id, &piece_id)).map(tauri::ipc::Response::new)
+}
+
+/// Save annotations, and drop any piece file they no longer refer to.
+///
+/// `pieces` is the ids still in use. Rust deliberately knows nothing about the
+/// annotation model, so it cannot work that out for itself - the caller states
+/// it, and this is the one place where files and annotations are reconciled.
 #[tauri::command]
 pub fn save_annotations<R: Runtime>(
     app: AppHandle<R>,
     id: String,
     annotations: serde_json::Value,
+    pieces: Vec<String>,
 ) -> Result<(), String> {
     let dir = gallery_dir(&app)?;
-    to_string_err(storage::save_annotations(&dir, &id, annotations))
+    to_string_err(storage::save_annotations(&dir, &id, annotations))?;
+    to_string_err(storage::prune_pieces(&dir, &id, &pieces))
 }
 
 #[tauri::command]

@@ -117,3 +117,26 @@ export function placeInViewport(
     height,
   };
 }
+
+/**
+ * Re-encode any drawable source to a PNG blob.
+ *
+ * A cut-out's pixels are a canvas while the cut is fresh and an image element
+ * once reloaded from disk. Copying one into another capture has to write a new
+ * file either way, so both are normalised through a canvas here.
+ */
+export async function toPngBlob(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+): Promise<Blob | null> {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}

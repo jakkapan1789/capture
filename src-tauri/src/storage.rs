@@ -6,11 +6,18 @@
 //! <app-data>/gallery/<id>.png         original, never touched again
 //! <app-data>/gallery/<id>.thumb.png   downscaled, for the gallery strip
 //! <app-data>/gallery/<id>.json        metadata + annotation objects
+//! <app-data>/gallery/<id>.piece-<pid>.png   flattened cut-out, if any
 //! ```
 //!
 //! The PNG is the pristine capture and the JSON holds the annotations as data.
 //! Nothing is ever flattened into the PNG - that only happens on export - which is
 //! what makes a history item re-editable months later.
+//!
+//! Cut-out pieces are the one deliberate exception. A cut takes the picture as it
+//! looks, annotations included, which cannot be expressed as a rectangle into the
+//! original; those pixels are flattened at the moment of the cut. Everything the
+//! piece was cut *from* is still an editable object underneath it, and the
+//! capture PNG is as untouched as ever.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -85,6 +92,71 @@ fn thumb_path(dir: &Path, id: &str) -> PathBuf {
 
 fn json_path(dir: &Path, id: &str) -> PathBuf {
     dir.join(format!("{id}.json"))
+}
+
+/// Filename prefix for every piece cut out of a capture.
+fn piece_prefix(id: &str) -> String {
+    format!("{id}.piece-")
+}
+
+fn piece_path(dir: &Path, capture_id: &str, piece_id: &str) -> PathBuf {
+    dir.join(format!("{}{piece_id}.png", piece_prefix(capture_id)))
+}
+
+/// Store a cut-out's pixels beside the capture it was taken from.
+///
+/// A piece is a flattened snapshot - the screenshot *and* whatever annotations
+/// were over it at the moment of the cut - so unlike everything else in this
+/// app it cannot be re-derived from the original PNG. It still does not belong
+/// in the annotation JSON: that file is rewritten on every autosave and read for
+/// every gallery listing, and a few hundred KB of base64 in it would be paid for
+/// on both paths. A sibling PNG keeps the JSON small and the writes cheap.
+pub fn write_piece(dir: &Path, capture_id: &str, piece_id: &str, png: &[u8]) -> Result<()> {
+    validate_id(capture_id)?;
+    validate_id(piece_id)?;
+    fs::create_dir_all(dir)?;
+    fs::write(piece_path(dir, capture_id, piece_id), png)?;
+    Ok(())
+}
+
+pub fn read_piece(dir: &Path, capture_id: &str, piece_id: &str) -> Result<Vec<u8>> {
+    validate_id(capture_id)?;
+    validate_id(piece_id)?;
+    let path = piece_path(dir, capture_id, piece_id);
+    fs::read(&path).with_context(|| format!("reading piece {}", path.display()))
+}
+
+/// Every piece file belonging to a capture, as `(path, piece_id)`.
+fn pieces_of(dir: &Path, capture_id: &str) -> Vec<(PathBuf, String)> {
+    let prefix = piece_prefix(capture_id);
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+
+    entries
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let name = path.file_name()?.to_str()?;
+            let piece_id = name.strip_prefix(&prefix)?.strip_suffix(".png")?;
+            Some((path.clone(), piece_id.to_string()))
+        })
+        .collect()
+}
+
+/// Delete piece files this capture no longer refers to.
+///
+/// Undoing a cut, or deleting the piece, leaves its PNG behind - the frontend
+/// owns the annotation model and cannot be asked to clean up files. So every
+/// save states which pieces are still live and anything else is removed. Called
+/// from `save_annotations`, which already runs on every edit.
+pub fn prune_pieces(dir: &Path, capture_id: &str, live: &[String]) -> Result<()> {
+    validate_id(capture_id)?;
+    for (path, piece_id) in pieces_of(dir, capture_id) {
+        if !live.iter().any(|id| id == &piece_id) {
+            let _ = fs::remove_file(path);
+        }
+    }
+    Ok(())
 }
 
 /// Encode to PNG, dropping the alpha channel when nothing is transparent.
@@ -266,12 +338,53 @@ pub fn delete_item(dir: &Path, id: &str) -> Result<()> {
         // Missing files are fine; a partial write should still be fully removable.
         let _ = fs::remove_file(path);
     }
+    // Cut-outs are stored as sibling files, so deleting a capture has to take
+    // them with it or they are orphaned forever - nothing else references them.
+    for (path, _) in pieces_of(dir, id) {
+        let _ = fs::remove_file(path);
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Piece files are the one thing here that cannot be re-derived, so the
+    /// rules about when they are removed are worth pinning down.
+    #[test]
+    fn prunes_pieces_that_no_annotation_refers_to() {
+        let dir = std::env::temp_dir().join(format!("capture-pieces-{}", now_millis()));
+        let capture = "cap-1";
+        write_piece(&dir, capture, "keep", b"png-a").unwrap();
+        write_piece(&dir, capture, "drop", b"png-b").unwrap();
+        // A piece belonging to a *different* capture must survive regardless.
+        write_piece(&dir, "cap-2", "other", b"png-c").unwrap();
+
+        prune_pieces(&dir, capture, &["keep".to_string()]).unwrap();
+
+        assert_eq!(read_piece(&dir, capture, "keep").unwrap(), b"png-a");
+        assert!(read_piece(&dir, capture, "drop").is_err(), "unreferenced piece should be gone");
+        assert_eq!(read_piece(&dir, "cap-2", "other").unwrap(), b"png-c");
+
+        // Deleting a capture takes its pieces with it, and leaves others alone.
+        delete_item(&dir, capture).unwrap();
+        assert!(read_piece(&dir, capture, "keep").is_err(), "pieces should follow the capture");
+        assert_eq!(read_piece(&dir, "cap-2", "other").unwrap(), b"png-c");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Ids reach this module from the frontend, and a piece id is pasted into a
+    /// path just like a capture id is.
+    #[test]
+    fn piece_ids_cannot_escape_the_gallery_dir() {
+        let dir = std::env::temp_dir().join(format!("capture-escape-{}", now_millis()));
+        assert!(write_piece(&dir, "cap-1", "../../evil", b"x").is_err());
+        assert!(write_piece(&dir, "../../evil", "piece", b"x").is_err());
+        assert!(read_piece(&dir, "cap-1", "../../evil").is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     /// A capture is a screenshot of a fixed shape; a thumbnail of it must keep
     /// that shape.
