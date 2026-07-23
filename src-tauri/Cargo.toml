@@ -53,6 +53,20 @@ objc2-vision = { version = "0.3", features = [
   "VNTypes",
 ] }
 
+# OCR on Windows uses Windows.Media.Ocr, part of the OS since Windows 10 - no
+# engine to bundle and nothing sent off the machine, same as Vision on macOS.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-core = "0.62"
+windows-future = "0.3"
+windows = { version = "0.62", features = [
+  "Foundation",
+  "Globalization",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Security_Cryptography",
+  "Storage_Streams",
+] }
+
 # Our own code stays unoptimised so `tauri dev` rebuilds stay fast, but the
 # dependencies get optimised. PNG encoding lives entirely in `image`/`png`/
 # `flate2`, and unoptimised a full-screen capture takes ~1.4s to save against

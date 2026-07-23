@@ -14,6 +14,8 @@ use anyhow::Result;
 
 #[cfg(target_os = "macos")]
 mod vision;
+#[cfg(target_os = "windows")]
+mod windows;
 
 /// One line of recognised text.
 ///
@@ -76,10 +78,15 @@ pub fn create_recognizer() -> Box<dyn TextRecognizer> {
         Box::new(vision::VisionRecognizer)
     }
 
-    // TODO(windows): replace with a `Windows.Media.Ocr` implementation. The
-    // engine is part of Windows 10+, and en-US is present on effectively every
-    // install, so it needs no language pack of its own.
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        Box::new(windows::WindowsRecognizer)
+    }
+
+    // Linux and anything else: the tool disables itself rather than failing when
+    // used. There is no cross-platform OCR engine to fall back to that would not
+    // mean bundling one.
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         Box::new(Unsupported)
     }
