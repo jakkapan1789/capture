@@ -369,26 +369,81 @@ pub fn list_items(dir: &Path) -> Result<Vec<CaptureMeta>> {
 
 pub fn delete_item(dir: &Path, id: &str) -> Result<()> {
     validate_id(id)?;
-    for path in [
+
+    let mut targets = vec![
         png_path(dir, id),
         thumb_path(dir, id),
         legacy_thumb_path(dir, id),
         json_path(dir, id),
-    ] {
-        // Missing files are fine; a partial write should still be fully removable.
-        let _ = fs::remove_file(path);
-    }
+    ];
     // Cut-outs are stored as sibling files, so deleting a capture has to take
     // them with it or they are orphaned forever - nothing else references them.
-    for (path, _) in pieces_of(dir, id) {
+    targets.extend(pieces_of(dir, id).into_iter().map(|(path, _)| path));
+
+    remove_files(targets);
+    Ok(())
+}
+
+/// Send a capture's files to the OS trash, deleting them only if that is not
+/// possible.
+///
+/// Moving to the Recycle Bin / Trash rather than unlinking earns two things: a
+/// deleted capture can be recovered, and the removal goes through the Shell's
+/// own file operation instead of a raw `unlink`. That second one matters more
+/// than it sounds: an unsigned app that captures the screen and then deletes a
+/// burst of files trips the ransomware and wiper heuristics in Windows
+/// antivirus, which is what quarantined a bulk delete here. The Shell operation
+/// is indistinguishable from Explorer deleting a file, because it is the same
+/// call.
+///
+/// Only paths that exist are offered - `trash` errors on a missing one, and a
+/// half-written capture must still be fully removable. If there is no trash to
+/// move to, as in a headless or sandboxed environment, it falls back to a
+/// permanent delete so a delete never simply fails.
+fn remove_files(paths: Vec<PathBuf>) {
+    let existing: Vec<PathBuf> = paths.into_iter().filter(|path| path.exists()).collect();
+    if existing.is_empty() {
+        return;
+    }
+
+    // Tests must not move files into the developer's or the CI runner's trash,
+    // and must not depend on one existing; they exercise the same target list
+    // and just remove permanently.
+    #[cfg(not(test))]
+    {
+        if trash::delete_all(&existing).is_ok() {
+            return;
+        }
+    }
+
+    for path in existing {
         let _ = fs::remove_file(path);
     }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Proves the trash integration works on this machine.
+    ///
+    /// Ignored, and it moves a real file to the real Trash - run it deliberately
+    /// with `cargo test -- --ignored`. The unit tests deliberately do *not* trash
+    /// (see `remove_files`), so this is the only thing that exercises the actual
+    /// crate rather than the permanent-delete fallback.
+    #[test]
+    #[ignore]
+    fn trash_moves_a_file_off_its_path() {
+        let dir = std::env::temp_dir().join(format!("capture-trash-{}", now_millis()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("delete-me.txt");
+        fs::write(&file, b"scratch").unwrap();
+
+        trash::delete(&file).expect("move to trash");
+        assert!(!file.exists(), "the file should no longer be at its path");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     /// Piece files are the one thing here that cannot be re-derived, so the
     /// rules about when they are removed are worth pinning down.

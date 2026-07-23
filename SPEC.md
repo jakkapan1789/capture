@@ -430,6 +430,27 @@ with room to spare, and the default height moved with it.
 **Re-measure whenever the toolbar gains a control** — adding the ellipse tool
 alone moved it from 883 to 919.
 
+## Deleting a capture moves it to the trash
+
+Deletion goes through the OS trash - Recycle Bin on Windows, Trash on macOS - via
+the `trash` crate, not `fs::remove_file`. Two reasons, and the second is the one
+that forced it:
+
+A deleted capture can be recovered, which fits an app whose whole point is not
+losing your edits.
+
+And an unsigned app that captures the screen and then unlinks a burst of files
+looks exactly like ransomware or a wiper to Windows antivirus - which quarantined
+a bulk delete here. The trash crate uses the Shell's own `IFileOperation`
+(`FOF_ALLOWUNDO`), the same call Explorer makes, so the removal is indistinguishable
+from a normal delete rather than a heuristic match. It is a mitigation, not a
+cure: the real fix is a code-signing certificate, without which a native
+screen-capturing binary will keep drawing suspicion.
+
+Tests never touch the real trash. `remove_files` permanently deletes under
+`#[cfg(test)]`, so the suite stays hermetic and needs no trash to exist; an
+`#[ignore]`d test exercises the actual crate against the real Trash on demand.
+
 ## Storage is named after the product, not the identifier
 
 Tauri's `app_data_dir()` is `<data dir>/<bundle identifier>`, which put the
