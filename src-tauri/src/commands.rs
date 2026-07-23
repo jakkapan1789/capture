@@ -26,12 +26,13 @@ const CAPTURE_CREATED: &str = "capture://created";
 /// Emitted when macOS refuses screen capture, so the UI can offer a way out.
 const PERMISSION_DENIED: &str = "capture://permission-denied";
 
-/// How long to wait after hiding our own window before a full-screen grab.
+/// How long to wait after the window has *actually* been hidden.
 ///
-/// Hiding is not synchronous with what the compositor has drawn. The region
-/// overlay no longer relies on this - it grabs the screen before it appears -
-/// but a full-screen capture still has to get the app's own window out of shot.
-const WINDOW_SETTLE: Duration = Duration::from_millis(120);
+/// This covers only the window server recompositing a frame or two once the
+/// window is gone - not the far larger uncertainty of when the hide takes
+/// effect, which `drain_main_thread` removes. A few frames is plenty; the value
+/// is generous so a slow or loaded compositor still clears.
+const COMPOSITOR_SETTLE: Duration = Duration::from_millis(90);
 
 pub struct AppState {
     pub capture: Box<dyn ScreenCapture>,
@@ -262,6 +263,25 @@ pub async fn capture_region<R: Runtime>(
     finish_capture(&app, capture)
 }
 
+/// Wait until the app's main thread has processed everything queued so far.
+///
+/// Window operations from a background thread - `hide()` here - are posted to
+/// the event loop and run later on the main thread; the call returns without
+/// waiting. Posting a task after one and awaiting it means that task runs after
+/// the hide, on the same FIFO queue, so by the time this returns the hide has
+/// executed. This is the part that was actually racing, not the compositor.
+async fn drain_main_thread<R: Runtime>(app: &AppHandle<R>) {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    if app
+        .run_on_main_thread(move || {
+            let _ = tx.send(());
+        })
+        .is_ok()
+    {
+        let _ = rx.await;
+    }
+}
+
 #[tauri::command]
 pub async fn capture_monitor<R: Runtime>(
     app: AppHandle<R>,
@@ -274,7 +294,12 @@ pub async fn capture_monitor<R: Runtime>(
     let main = app.get_webview_window(MAIN_LABEL);
     if let Some(main) = &main {
         main.hide().map_err(|e| e.to_string())?;
-        tokio::time::sleep(WINDOW_SETTLE).await;
+        // `hide()` from this thread only *queues* the hide on the event loop and
+        // returns; a fixed sleep afterwards was racing the main thread getting to
+        // it. Draining the main thread first guarantees the window is actually
+        // gone before the compositor settle even begins.
+        drain_main_thread(&app).await;
+        tokio::time::sleep(COMPOSITOR_SETTLE).await;
     }
 
     let result = state.capture.capture_monitor(monitor_id);
