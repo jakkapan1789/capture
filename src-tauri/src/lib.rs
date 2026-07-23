@@ -32,6 +32,7 @@ pub fn run() {
             recognizer: ocr::create_recognizer(),
             settings: Mutex::new(settings::Settings::default()),
             pending_frame: Mutex::new(None),
+            hid_main_for_region: std::sync::atomic::AtomicBool::new(false),
         })
         .setup(|app| {
             let handle = app.handle().clone();

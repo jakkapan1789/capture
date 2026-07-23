@@ -28,10 +28,19 @@ const PERMISSION_DENIED: &str = "capture://permission-denied";
 
 /// How long to wait after the window has *actually* been hidden.
 ///
-/// This covers only the window server recompositing a frame or two once the
-/// window is gone - not the far larger uncertainty of when the hide takes
-/// effect, which `drain_main_thread` removes. A few frames is plenty; the value
-/// is generous so a slow or loaded compositor still clears.
+/// This covers only the compositor recompositing a frame or two once the window
+/// is gone - not the far larger uncertainty of *when* the hide takes effect,
+/// which `drain_main_thread` removes.
+///
+/// Windows' DWM is slower to drop a hidden window from the composited screen than
+/// macOS's window server, and a value that is plenty on one is too short on the
+/// other: 90ms left the app's own window in Windows screenshots. Tuned per
+/// platform rather than set to the larger value everywhere, so a full-screen
+/// capture on macOS is not needlessly delayed. Bump the Windows figure if a
+/// capture there still catches the window.
+#[cfg(target_os = "windows")]
+const COMPOSITOR_SETTLE: Duration = Duration::from_millis(320);
+#[cfg(not(target_os = "windows"))]
 const COMPOSITOR_SETTLE: Duration = Duration::from_millis(90);
 
 pub struct AppState {
@@ -45,6 +54,14 @@ pub struct AppState {
     /// compositor to finish hiding the overlay is guesswork; this removes the
     /// race instead of trying to out-wait it.
     pub pending_frame: Mutex<Option<crate::capture::Capture>>,
+    /// Whether opening the region overlay hid the main window.
+    ///
+    /// A region capture from the toolbar has the app's own window in front, so
+    /// it must go before the frame is grabbed - the same as a full-screen
+    /// capture. A successful capture surfaces it again through `finish_capture`;
+    /// this flag is what lets a *cancel* put it back too, and only when we were
+    /// the ones who hid it.
+    pub hid_main_for_region: std::sync::atomic::AtomicBool,
 }
 
 /// Settings plus the runtime facts the UI needs to explain itself.
@@ -150,6 +167,11 @@ pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String>
     let position = *monitor.position();
     let size = *monitor.size();
 
+    // Take our own window out of shot before grabbing. Triggered from the
+    // toolbar the app is in front, so the frame - which the selected region is
+    // cut from - would otherwise contain it.
+    hide_main_for_region(app);
+
     // Grab the screen *now*, while nothing of ours is covering it.
     let scale = monitor.scale_factor();
     let cursor_logical = (cursor.x / scale, cursor.y / scale);
@@ -208,6 +230,8 @@ pub async fn close_region_overlay<R: Runtime>(
     if let Some(overlay) = app.get_webview_window(OVERLAY_LABEL) {
         overlay.close().map_err(|e| e.to_string())?;
     }
+    // Cancelling has to undo the hide the overlay did on the way in.
+    restore_main_for_region(&app);
     // Drop the frame; keeping it would waste a screen-sized buffer until the
     // next capture, and it would be stale by then anyway.
     if let Ok(mut pending) = state.pending_frame.lock() {
@@ -270,6 +294,51 @@ pub async fn capture_region<R: Runtime>(
 /// waiting. Posting a task after one and awaiting it means that task runs after
 /// the hide, on the same FIFO queue, so by the time this returns the hide has
 /// executed. This is the part that was actually racing, not the compositor.
+/// Blocking twin of [`drain_main_thread`], for callers that are not async.
+///
+/// `show_region_overlay` is sync and runs off the main thread, so it waits on a
+/// plain channel rather than a future.
+fn drain_main_thread_blocking<R: Runtime>(app: &AppHandle<R>) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    if app
+        .run_on_main_thread(move || {
+            let _ = tx.send(());
+        })
+        .is_ok()
+    {
+        let _ = rx.recv();
+    }
+}
+
+/// Take the app's own window out of shot, and remember that we did.
+///
+/// Hides, then waits for the hide to actually take effect - the same barrier and
+/// settle a full-screen capture uses - so the grab that follows is clean.
+fn hide_main_for_region<R: Runtime>(app: &AppHandle<R>) {
+    let Some(main) = app.get_webview_window(MAIN_LABEL) else {
+        return;
+    };
+    if main.hide().is_ok() {
+        app.state::<AppState>()
+            .hid_main_for_region
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        drain_main_thread_blocking(app);
+        std::thread::sleep(COMPOSITOR_SETTLE);
+    }
+}
+
+/// Give the window back if a region capture hid it and did not otherwise return
+/// it - i.e. on cancel.
+fn restore_main_for_region<R: Runtime>(app: &AppHandle<R>) {
+    if app
+        .state::<AppState>()
+        .hid_main_for_region
+        .swap(false, std::sync::atomic::Ordering::Relaxed)
+    {
+        surface_main_window(app);
+    }
+}
+
 async fn drain_main_thread<R: Runtime>(app: &AppHandle<R>) {
     let (tx, rx) = tokio::sync::oneshot::channel();
     if app
@@ -339,6 +408,9 @@ fn finish_capture<R: Runtime>(
         capture.origin,
     ))?;
 
+    app.state::<AppState>()
+        .hid_main_for_region
+        .store(false, std::sync::atomic::Ordering::Relaxed);
     surface_main_window(app);
 
     let _ = app.emit_to(MAIN_LABEL, CAPTURE_CREATED, &meta);
