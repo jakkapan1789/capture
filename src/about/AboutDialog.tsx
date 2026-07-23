@@ -97,7 +97,11 @@ export default function AboutDialog({ onClose, onBack }: Props) {
               <button
                 type="button"
                 className="link-btn"
-                onClick={() => void openUrl(`mailto:${SUPPORT_EMAIL}`)}
+                onClick={() =>
+                  void openUrl(`mailto:${SUPPORT_EMAIL}`).catch((error) =>
+                    console.error("could not open the mail client", error),
+                  )
+                }
                 title="Write to support"
               >
                 {SUPPORT_EMAIL}

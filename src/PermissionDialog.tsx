@@ -72,7 +72,14 @@ export default function PermissionDialog({ onClose }: Props) {
           <button
             type="button"
             className="btn primary"
-            onClick={() => void openUrl(SETTINGS_URL)}
+            onClick={() => {
+              // A ForbiddenUrl from an empty scope resolves as a rejected
+              // promise with nothing on screen - which is how this button looked
+              // broken. Log it so a future scope gap is visible, not silent.
+              void openUrl(SETTINGS_URL).catch((error) =>
+                console.error("could not open System Settings", error),
+              );
+            }}
           >
             Open System Settings
           </button>

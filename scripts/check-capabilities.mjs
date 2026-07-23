@@ -56,9 +56,12 @@ function sourceFiles(dir) {
   });
 }
 
+// A permission is either a bare string or an object carrying a scope
+// ({ identifier, allow, deny }). Both grant the command; only the identifier
+// decides that, so read it from whichever shape is used.
 const granted = new Set(
-  JSON.parse(readFileSync("src-tauri/capabilities/default.json", "utf8")).permissions.filter(
-    (permission) => typeof permission === "string",
+  JSON.parse(readFileSync("src-tauri/capabilities/default.json", "utf8")).permissions.map(
+    (permission) => (typeof permission === "string" ? permission : permission.identifier),
   ),
 );
 

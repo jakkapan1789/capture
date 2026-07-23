@@ -22,7 +22,20 @@
     "clipboard-manager:allow-read-image",
     "core:image:allow-rgba",
     "core:image:allow-size",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "mailto:*"
+        },
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "x-apple.systempreferences:*"
+        }
+      ]
+    },
     "opener:allow-reveal-item-in-dir",
     "dialog:allow-save",
     "fs:allow-write-file",
