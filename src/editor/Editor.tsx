@@ -381,7 +381,11 @@ export default function Editor({
       .filter((node): node is Konva.Node => Boolean(node));
 
     const resizable = selected.length === 1 && RESIZABLE.has(selected[0].type);
-    transformer.nodes(selected.length > 1 || resizable ? nodes : []);
+    // Text is not resizable, so it used to get no transformer at all - and so no
+    // sign of being selected. Attach it for the border alone, with resize off so
+    // no anchors appear: just an outline saying "this is the text you picked".
+    const singleText = selected.length === 1 && selected[0].type === "text";
+    transformer.nodes(selected.length > 1 || resizable || singleText ? nodes : []);
     transformer.resizeEnabled(resizable);
     transformer.getLayer()?.batchDraw();
   }, [selected, annotations, cropping, crop]);
@@ -1700,6 +1704,9 @@ export default function Editor({
                 borderStroke={cropping ? "#ffffff" : ACCENT}
                 anchorStroke={cropping ? "#ffffff" : ACCENT}
                 anchorSize={8}
+                // A little breathing room so the outline sits just off the
+                // object rather than hugging a glyph or a stroke.
+                padding={3}
                 ignoreStroke
                 boundBoxFunc={(oldBox, newBox) =>
                   newBox.width < 16 || newBox.height < 16 ? oldBox : newBox

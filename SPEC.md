@@ -281,6 +281,12 @@ on open, so the first keystroke replaces "Text" instead of appending to it, and
 emptying the box cancels rather than restoring the placeholder - deleting the
 word and clicking away used to leave "Text" on the picture.
 
+A selected text shows an outline. Text is not resizable, so it used to get no
+transformer attached and therefore no sign of being selected at all - you could
+not tell which one you had picked. It now attaches the transformer for the border
+alone, with resize disabled so no anchors appear: an outline set slightly off the
+glyphs by the transformer's padding, and nothing more.
+
 ## Selection follows the tool
 
 Switching tools clears the selection. Picking up the arrow tool while a box was
