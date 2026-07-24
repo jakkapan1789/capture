@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * A right-click menu anchored at a point.
@@ -43,7 +44,12 @@ export default function ContextMenu({ x, y, onClose, children }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [onClose]);
 
-  return (
+  // Rendered into the body, not where it is used. The Capture dropdown lives
+  // inside the sticky trailing button group, whose stacking context trapped the
+  // menu's z-index beneath the canvas - so a menu opened over a capture appeared
+  // behind it. A portal escapes every ancestor stacking context; its fixed,
+  // viewport-relative position is unaffected by where it is mounted.
+  return createPortal(
     <>
       {/* A full-viewport backdrop is the simplest way to close on "click
           anywhere else", including a click back on whatever opened the menu. */}
@@ -58,6 +64,7 @@ export default function ContextMenu({ x, y, onClose, children }: Props) {
       <div ref={ref} className="context-menu" style={position} role="menu">
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
