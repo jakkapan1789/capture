@@ -16,6 +16,7 @@ export type Tool =
   | "ocr"
   | "arrow"
   | "rect"
+  | "highlight"
   | "ellipse"
   | "text"
   | "step"
@@ -50,6 +51,21 @@ export interface RectAnnotation extends BaseAnnotation {
   height: number;
   stroke: string;
   strokeWidth: number;
+}
+
+/**
+ * A highlighter stroke: a translucent filled box drawn over content.
+ *
+ * Rendered with a multiply blend so it tints what is under it - text stays dark
+ * and readable rather than being washed out - exactly like a real highlighter
+ * pen. Its own colour, kept separate from the shape colour, because a red
+ * highlighter is nobody's idea of one.
+ */
+export interface HighlightAnnotation extends BaseAnnotation {
+  type: "highlight";
+  width: number;
+  height: number;
+  fill: string;
 }
 
 /**
@@ -217,6 +233,7 @@ export interface ImageAnnotation extends BaseAnnotation {
 export type Annotation =
   | ArrowAnnotation
   | RectAnnotation
+  | HighlightAnnotation
   | EllipseAnnotation
   | TextAnnotation
   | StepAnnotation
@@ -226,6 +243,9 @@ export type Annotation =
   | CropAnnotation;
 
 export const ACCENT = "#ff3b30";
+
+/** Default highlighter colour - a warm yellow that reads well under multiply. */
+export const HIGHLIGHT_COLOR = "#ffd400";
 
 /**
  * Font for text annotations.
@@ -260,6 +280,7 @@ function colorField(annotation: Annotation): "stroke" | "fill" | null {
     case "rect":
     case "ellipse":
       return "stroke";
+    case "highlight":
     case "text":
     case "step":
     case "fill":

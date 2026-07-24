@@ -62,6 +62,7 @@ import {
   createId,
   DEFAULT_FONT_SIZE,
   findCrop,
+  HIGHLIGHT_COLOR,
   isSelectable,
   isUnmovedPiece,
   persistableAnnotations,
@@ -98,6 +99,7 @@ const SHORTCUTS: Record<string, Tool> = {
   v: "select",
   a: "arrow",
   r: "rect",
+  h: "highlight",
   o: "ellipse",
   t: "text",
   s: "step",
@@ -108,7 +110,7 @@ const SHORTCUTS: Record<string, Tool> = {
 };
 
 /** Tools whose selection box the transformer can resize. */
-const RESIZABLE = new Set(["rect", "ellipse", "blur", "image", "fill"]);
+const RESIZABLE = new Set(["rect", "highlight", "ellipse", "blur", "image", "fill"]);
 
 interface Props {
   meta: CaptureMeta;
@@ -187,6 +189,7 @@ export default function Editor({
    */
   const [style, setStyle] = useState({
     color: ACCENT,
+    highlightColor: HIGHLIGHT_COLOR,
     fontSize: DEFAULT_FONT_SIZE,
     /** Paint's Opaque/Transparent, remembered for the next text like the rest. */
     textBackground: false,
@@ -972,6 +975,11 @@ export default function Editor({
         add({ id: createId(), type: "rect", ...bounds, stroke: style.color, strokeWidth });
         return;
       }
+      case "highlight": {
+        if (bounds.width < MIN_DRAW || bounds.height < MIN_DRAW) return;
+        add({ id: createId(), type: "highlight", ...bounds, fill: style.highlightColor });
+        return;
+      }
       case "ellipse": {
         if (bounds.width < MIN_DRAW || bounds.height < MIN_DRAW) return;
         add({ id: createId(), type: "ellipse", ...bounds, stroke: style.color, strokeWidth });
@@ -1321,8 +1329,14 @@ export default function Editor({
   /* ---------- style controls ---------- */
 
   /** Set the colour for anything selected that has one, and for the next shape. */
+  // Highlight keeps a separate colour from shapes, so picking green for a
+  // highlighter does not turn every future box green too.
+  const highlightContext = tool === "highlight" || single?.type === "highlight";
+
   const applyColor = (color: string) => {
-    setStyle((previous) => ({ ...previous, color }));
+    setStyle((previous) =>
+      highlightContext ? { ...previous, highlightColor: color } : { ...previous, color },
+    );
     for (const annotation of selected) {
       const patch = colorPatch(annotation, color);
       if (patch) update(annotation.id, patch);
@@ -1338,10 +1352,11 @@ export default function Editor({
 
   // Show the controls' current value from the selection when there is one, so the
   // toolbar reflects what you are looking at rather than what you last picked.
-  const activeColor = (single && colorOf(single)) ?? style.color;
+  const activeColor =
+    (single && colorOf(single)) ?? (highlightContext ? style.highlightColor : style.color);
   const activeFontSize = single?.type === "text" ? single.fontSize : style.fontSize;
   const showColor =
-    ["text", "arrow", "rect", "step"].includes(tool) ||
+    ["text", "arrow", "rect", "highlight", "step"].includes(tool) ||
     selected.some((annotation) => colorOf(annotation) !== null);
   const showFontSize = tool === "text" || selected.some((a) => a.type === "text");
 
@@ -1451,6 +1466,40 @@ export default function Editor({
                         stroke={annotation.stroke}
                         strokeWidth={annotation.strokeWidth}
                         cornerRadius={4 * unit}
+                        draggable={draggableNow}
+                        onDragEnd={(event) =>
+                          update(annotation.id, { x: event.target.x(), y: event.target.y() })
+                        }
+                        onTransformEnd={(event) => {
+                          const node = event.target;
+                          const scaleX = node.scaleX();
+                          const scaleY = node.scaleY();
+                          node.scaleX(1);
+                          node.scaleY(1);
+                          update(annotation.id, {
+                            x: node.x(),
+                            y: node.y(),
+                            width: Math.max(8, node.width() * scaleX),
+                            height: Math.max(8, node.height() * scaleY),
+                          });
+                        }}
+                      />
+                    );
+                  case "highlight":
+                    return (
+                      <Rect
+                        key={annotation.id}
+                        id={annotation.id}
+                        x={annotation.x}
+                        y={annotation.y}
+                        width={annotation.width}
+                        height={annotation.height}
+                        fill={annotation.fill}
+                        opacity={0.5}
+                        // Multiply tints what is under the box instead of covering
+                        // it, so text stays dark and legible - a real highlighter.
+                        globalCompositeOperation="multiply"
+                        cornerRadius={2 * unit}
                         draggable={draggableNow}
                         onDragEnd={(event) =>
                           update(annotation.id, { x: event.target.x(), y: event.target.y() })

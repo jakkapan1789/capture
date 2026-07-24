@@ -227,6 +227,21 @@ deliberate work and is left alone.
 
 Both are one mutation, so undo brings the pair back together.
 
+## The highlighter tints, it does not cover
+
+The highlight tool is a filled box like the shapes, but drawn with a **multiply**
+blend rather than an opaque or straight-alpha fill. Multiply tints what is under
+the box - white paper becomes yellow, black text stays black - so the highlighted
+text remains legible, exactly like a real highlighter pen. A straight translucent
+fill would grey the text out instead. A test confirms it: a highlight over black
+text leaves that text at rgb(0,0,0).
+
+Its colour is kept separate from the shape colour (`highlightColor`, default a
+warm yellow), because the shared shape colour defaults to red and a red
+highlighter is not one anybody wants. The colour picker edits whichever is in
+context - the highlighter's when the highlight tool or a highlight is active, the
+shape's otherwise.
+
 ## Typing text is the same text
 
 Konva has no text input, so editing happens in a real `<textarea>` overlaid on

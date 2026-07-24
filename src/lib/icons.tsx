@@ -264,6 +264,15 @@ export const EnhanceIcon = (props: { size?: number }) => (
   </Svg>
 );
 
+/** A highlighter marker over a line of text. */
+export const HighlightIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <path d="M4 20 H10" />
+    <path d="M14.5 4.5 L19.5 9.5 L11 18 L6 18 L6 13 Z" />
+    <path d="M12.5 6.5 L17.5 11.5" />
+  </Svg>
+);
+
 export const InfoIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <circle cx="12" cy="12" r="9" />
