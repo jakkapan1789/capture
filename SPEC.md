@@ -453,6 +453,8 @@ so both were clipped by the window they were shown in. Nothing scrolls there, so
 the buttons at the bottom were simply unreachable. `minHeight = 670` fits them
 with room to spare, and the default height moved with it.
 
+The width **cannot shrink below the toolbar's widest state**, which is a step badge selected while a crop is active: 901px of controls plus the 190px strip is 1091px, so `minWidth = 1090` sits exactly on that floor. Anything less overlaps the pinned buttons. Reclaiming width means shrinking the toolbar, not lowering the minimum.
+
 **Re-measure whenever the toolbar gains a control** — adding the ellipse tool
 alone moved it from 883 to 919.
 
