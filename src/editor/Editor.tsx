@@ -374,6 +374,7 @@ export default function Editor({
       const node = crop ? layer.findOne(`#${crop.id}`) : undefined;
       transformer.nodes(node ? [node] : []);
       transformer.resizeEnabled(true);
+      transformer.padding(0);
       transformer.getLayer()?.batchDraw();
       return;
     }
@@ -390,6 +391,9 @@ export default function Editor({
     const singleText = selected.length === 1 && selected[0].type === "text";
     transformer.nodes(selected.length > 1 || resizable || singleText ? nodes : []);
     transformer.resizeEnabled(resizable);
+    // Padding only for text. A shape already has its own outline, and offsetting
+    // the transformer border off it just draws a second border beside the first.
+    transformer.padding(singleText ? 3 : 0);
     transformer.getLayer()?.batchDraw();
   }, [selected, annotations, cropping, crop]);
 
@@ -1747,15 +1751,35 @@ export default function Editor({
                 />
               )}
 
+              {/* Highlight previews as what it will be - the live tint - so the
+                  area it covers is visible as you drag, with a dashed edge to
+                  read its exact bounds even over already-yellow content. */}
+              {draft?.tool === "highlight" && (
+                <>
+                  <Rect
+                    {...draftBounds(draft)}
+                    fill={style.highlightColor}
+                    opacity={0.5}
+                    globalCompositeOperation="multiply"
+                    cornerRadius={2 * unit}
+                    listening={false}
+                  />
+                  <Rect
+                    {...draftBounds(draft)}
+                    stroke={style.highlightColor}
+                    strokeWidth={1 / fitScale}
+                    dash={[6 * unit, 4 * unit]}
+                    listening={false}
+                  />
+                </>
+              )}
+
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}
                 borderStroke={cropping ? "#ffffff" : ACCENT}
                 anchorStroke={cropping ? "#ffffff" : ACCENT}
                 anchorSize={8}
-                // A little breathing room so the outline sits just off the
-                // object rather than hugging a glyph or a stroke.
-                padding={3}
                 ignoreStroke
                 boundBoxFunc={(oldBox, newBox) =>
                   newBox.width < 16 || newBox.height < 16 ? oldBox : newBox
