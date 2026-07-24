@@ -453,7 +453,7 @@ so both were clipped by the window they were shown in. Nothing scrolls there, so
 the buttons at the bottom were simply unreachable. `minHeight = 670` fits them
 with room to spare, and the default height moved with it.
 
-The width **cannot shrink below the toolbar's widest state**, which is a step badge selected while a crop is active: 901px of controls plus the 190px strip is 1091px, so `minWidth = 1090` sits exactly on that floor. Anything less overlaps the pinned buttons. Reclaiming width means shrinking the toolbar, not lowering the minimum.
+The width floor is the toolbar's widest state - a step badge selected while a crop is active - plus the history strip. Folding the two capture buttons into one dropdown, tightening the toolbar gap, and narrowing the strip to 143px brought that widest state from 901px to 845px and the strip from 190px to 143px, so the floor is 988px and `minWidth = 990`. Below that the pinned buttons overlap: the width is bounded by the toolbar, so it can only come down by making the toolbar smaller, not by lowering the number.
 
 **Re-measure whenever the toolbar gains a control** — adding the ellipse tool
 alone moved it from 883 to 919.
