@@ -1,4 +1,5 @@
 mod capture;
+mod enhance;
 mod commands;
 mod hotkey;
 mod ocr;
@@ -61,6 +62,7 @@ pub fn run() {
             commands::capture_region,
             commands::capture_monitor,
             commands::read_capture_image,
+            commands::enhance_capture,
             commands::read_capture_thumbnail,
             commands::save_annotations,
             commands::save_capture_piece,

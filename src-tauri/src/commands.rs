@@ -207,6 +207,14 @@ pub fn show_region_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), String>
         .and_then(|_| window.set_size(size))
         .map_err(|e| e.to_string())?;
 
+    // Grab keyboard focus explicitly, and last. A transparent, borderless
+    // overlay does not reliably take focus on Windows from `.focused(true)`
+    // alone, setting the position and size just above can reset it, and the main
+    // window was hidden moments before - all of which can leave the overlay
+    // without focus. Without it the webview never sees the Escape keydown, so the
+    // overlay cannot be cancelled without clicking it first.
+    let _ = window.set_focus();
+
     Ok(())
 }
 
@@ -535,6 +543,54 @@ pub fn capture_file_path<R: Runtime>(app: AppHandle<R>, id: String) -> Result<St
     let dir = gallery_dir(&app)?;
     to_string_err(storage::capture_path(&dir, &id))
         .map(|path| path.to_string_lossy().into_owned())
+}
+
+/// Make a small capture readable: a new, upscaled and sharpened copy in the
+/// gallery.
+///
+/// A new capture rather than a change to this one, because the whole app is
+/// non-destructive - the original stays exactly as taken, and the readable
+/// version is its own history item you can annotate or export. Runs on a
+/// blocking thread: resampling a region is milliseconds, but it is real work and
+/// does not belong on the event loop.
+#[tauri::command]
+pub async fn enhance_capture<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<CaptureMeta, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = gallery_dir(&app)?;
+        let source = to_string_err(storage::load_item(&dir, &id))?;
+        let png = to_string_err(storage::read_png(&dir, &id))?;
+
+        let image = to_string_err(
+            image::load_from_memory(&png)
+                .map(|img| img.to_rgba8())
+                .map_err(Into::into),
+        )?;
+
+        if !crate::enhance::would_help(image.width(), image.height()) {
+            return Err("This capture is already large enough to read.".to_string());
+        }
+
+        let scale = crate::enhance::scale_for(image.width(), image.height());
+        let enhanced = to_string_err(crate::enhance::enhance(&image))?;
+
+        // The pixels are `scale`x bigger, so annotations drawn on the result
+        // should be too - keep them proportional by scaling the stored factor.
+        let meta = to_string_err(storage::save_capture(
+            &dir,
+            &enhanced,
+            source.meta.scale_factor * scale,
+            (source.meta.origin_x, source.meta.origin_y),
+        ))?;
+
+        surface_main_window(&app);
+        let _ = app.emit_to(MAIN_LABEL, CAPTURE_CREATED, &meta);
+        Ok(meta)
+    })
+    .await
+    .map_err(|error| format!("could not enhance the capture: {error}"))?
 }
 
 /// Whether this build can read text from an image at all.

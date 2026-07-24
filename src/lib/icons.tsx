@@ -254,6 +254,16 @@ export const TextPlateIcon = (props: { size?: number }) => (
   </Svg>
 );
 
+/** A magnifier with a plus: enlarge to read. */
+export const EnhanceIcon = (props: { size?: number }) => (
+  <Svg {...props}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M20 20 L16 16" />
+    <path d="M11 8.4 V13.6" />
+    <path d="M8.4 11 H13.6" />
+  </Svg>
+);
+
 export const InfoIcon = (props: { size?: number }) => (
   <Svg {...props}>
     <circle cx="12" cy="12" r="9" />

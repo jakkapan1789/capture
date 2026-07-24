@@ -340,6 +340,26 @@ does not flash an empty window while the chunk arrives.
 Widening or narrowing the history strip changes none of this. The gallery's cost
 is the number of thumbnails read and their size, not the width they are drawn at.
 
+## Enhancing a small capture
+
+Capturing a tiny image - an email thumbnail, a cramped table - gives too few
+pixels to read comfortably. "Enhance for reading" upscales it with Lanczos3 and
+then applies an unsharp mask, so the pixels are bigger and the edges crisper.
+It does **not** invent detail that was never captured; nothing can. The honesty
+is in the bounds: an image already past `TARGET_LONGEST_EDGE` is left untouched
+(enlarging it would only soften it), and a tiny one is capped at `MAX_SCALE`
+because past that it is all interpolation.
+
+The result is a **new** gallery capture, not a change to the original - the app
+is non-destructive, so the small original stays and the readable copy is its own
+re-editable item. Its stored scale factor is the original's times the upscale, so
+annotations drawn on the bigger image stay proportional.
+
+Local, like everything: `image` was already a dependency, there is no model to
+bundle and nothing leaves the machine. A test proves it sharpens rather than only
+enlarging - an unsharp mask overshoots a hard edge, which a plain resize never
+would.
+
 ## Where capture time actually goes
 
 Saving a capture is one PNG encode of a full-resolution frame. A first pass at

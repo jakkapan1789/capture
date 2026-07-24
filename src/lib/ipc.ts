@@ -165,6 +165,10 @@ function imageMime(bytes: Uint8Array): string {
   return bytes[0] === 0xff && bytes[1] === 0xd8 ? "image/jpeg" : "image/png";
 }
 
+/** Make a small capture readable: creates a new, upscaled + sharpened capture. */
+export const enhanceCapture = (id: string) =>
+  invoke<CaptureMeta>("enhance_capture", { id });
+
 export const readCaptureImage = (id: string) =>
   readBytes("read_capture_image", id);
 export const readCaptureThumbnail = (id: string) =>

@@ -6,6 +6,7 @@
  * get virtual-desktop coordinates, because only Rust knows where the window sits.
  */
 
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureRegion, closeRegionOverlay, type Region } from "../lib/ipc";
 
@@ -34,8 +35,19 @@ export default function RegionOverlay() {
   // the window is still up during the pre-capture settle delay.
   const capturing = useRef(false);
 
+  const overlayRef = useRef<HTMLDivElement>(null);
+
   const cancel = useCallback(() => {
     void closeRegionOverlay();
+  }, []);
+
+  // Make sure keystrokes reach us. The window must hold keyboard focus and a
+  // focusable element in it must be focused, or the window-level keydown below
+  // is missed until the user clicks - which is what stopped Escape from
+  // cancelling. Backs up the Rust-side set_focus rather than trusting it alone.
+  useEffect(() => {
+    void getCurrentWindow().setFocus().catch(() => {});
+    overlayRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -87,7 +99,9 @@ export default function RegionOverlay() {
 
   return (
     <div
+      ref={overlayRef}
       className="overlay"
+      tabIndex={-1}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={() => void onPointerUp()}

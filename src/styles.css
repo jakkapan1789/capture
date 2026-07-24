@@ -1246,6 +1246,13 @@ button {
   cursor: crosshair;
 }
 
+/* Focused on mount so Escape is heard, but it is the whole screen - a focus ring
+   around it would be nonsense. */
+.overlay:focus,
+.overlay:focus-visible {
+  outline: none;
+}
+
 .scrim {
   position: absolute;
   background: rgba(0, 0, 0, 0.42);

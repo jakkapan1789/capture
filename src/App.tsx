@@ -34,6 +34,7 @@ import {
   loadGalleryItem,
   openRegionOverlay,
   captureFilePath,
+  enhanceCapture,
   getSettings,
   readCaptureImage,
   type CaptureMeta,
@@ -238,6 +239,25 @@ function CaptureApp() {
     }
   };
 
+  const onEnhanceCapture = useCallback(
+    (id: string) => {
+      void (async () => {
+        try {
+          // The backend files the enhanced copy and emits CAPTURE_CREATED, which
+          // the listener above opens - so there is nothing to do with the result
+          // here but report it.
+          await enhanceCapture(id);
+          flash("Enhanced copy added to history");
+        } catch (error) {
+          // The common "already large enough" case comes back as a plain string;
+          // show it as-is rather than dressing it up as a failure.
+          flash(String(error).replace(/^"|"$/g, ""));
+        }
+      })();
+    },
+    [flash],
+  );
+
   const onSave = async (blob: Blob) => {
     try {
       const path = await save({
@@ -367,6 +387,7 @@ function CaptureApp() {
             initialAnnotations={open.annotations}
             onCopy={onCopy}
             onSave={onSave}
+            onEnhance={() => onEnhanceCapture(open.meta.id)}
             status={status}
             onNotify={flash}
             actions={captureActions}

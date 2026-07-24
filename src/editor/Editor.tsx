@@ -29,6 +29,7 @@ import {
 import {
   CopyIcon,
   DownloadIcon,
+  EnhanceIcon,
   ImageIcon,
   PasteIcon,
   TextPlateIcon,
@@ -115,6 +116,8 @@ interface Props {
   initialAnnotations: Annotation[];
   onCopy: (blob: Blob) => Promise<void>;
   onSave: (blob: Blob) => Promise<void>;
+  /** Create a larger, sharper copy of this capture for reading. */
+  onEnhance: () => void;
   status: string | null;
   onNotify: (message: string) => void;
   /** Capture and settings buttons, pinned to the far right of the toolbar. */
@@ -147,6 +150,7 @@ export default function Editor({
   initialAnnotations,
   onCopy,
   onSave,
+  onEnhance,
   status,
   onNotify,
   actions,
@@ -1831,6 +1835,17 @@ export default function Editor({
             <button type="button" role="menuitem" onClick={() => runAndClose(onSave)}>
               <DownloadIcon />
               <span>Save PNG...</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onEnhance();
+                setMenu(null);
+              }}
+            >
+              <EnhanceIcon />
+              <span>Enhance for reading</span>
             </button>
 
             {/* Destructive action last, behind a separator, so it is never where

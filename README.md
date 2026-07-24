@@ -24,6 +24,7 @@ fail.
 - Read text out of a capture with the OS's own OCR, shown for review before copying — no upload, nothing bundled (macOS; Windows to follow)
 - Undo/redo, multi-select, copy/paste of objects between captures
 - Auto-saving history you can reopen and keep editing
+- Enhance a small capture (upscale + sharpen) to read it
 - Export to PNG or copy straight to the clipboard
 
 ## Non-destructive by design
